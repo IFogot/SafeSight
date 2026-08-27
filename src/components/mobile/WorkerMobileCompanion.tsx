@@ -11,6 +11,8 @@ import {
   Trophy,
   Sparkles,
   RefreshCw,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { soundEngine } from '../../core/speech';
 import confetti from 'canvas-confetti';
@@ -20,6 +22,30 @@ export const WorkerMobileCompanion: React.FC = () => {
   const [isSelfieScanning, setIsSelfieScanning] = useState<boolean>(false);
   const [selfieResult, setSelfieResult] = useState<'idle' | 'success' | 'fail'>('idle');
   const [sosActive, setSosActive] = useState<boolean>(false);
+
+  // Daily Shift Pre-Flight Safety Checklist
+  const [dailyChecklist, setDailyChecklist] = useState<{ id: string; label: string; checked: boolean }[]>([
+    { id: 'chk-1', label: 'Inspect chin strap & structural integrity of hard hat', checked: true },
+    { id: 'chk-2', label: 'Verify high-visibility vest retro-reflective stripes', checked: true },
+    { id: 'chk-3', label: 'Check steel-toe boot sole traction & oil resistance', checked: false },
+    { id: 'chk-4', label: 'Test emergency eye-wash station flow in Zone B', checked: false },
+  ]);
+
+  const handleToggleChecklist = (id: string) => {
+    setDailyChecklist((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          const nextState = !item.checked;
+          if (nextState) {
+            soundEngine.playAlertBeep('click');
+            addPoints(15);
+          }
+          return { ...item, checked: nextState };
+        }
+        return item;
+      })
+    );
+  };
 
   const handleRunSelfieCheck = () => {
     setIsSelfieScanning(true);
@@ -42,7 +68,7 @@ export const WorkerMobileCompanion: React.FC = () => {
   const handleSosClick = () => {
     setSosActive(true);
     soundEngine.playAlertBeep('critical');
-    triggerEvacuation('Frontline Worker Panic Button Triggered in Mobile App');
+    triggerEvacuation('Frontline Worker Panic Button Triggered in Mobile Companion');
   };
 
   const dailyBriefings: Record<string, string> = {
@@ -108,7 +134,7 @@ export const WorkerMobileCompanion: React.FC = () => {
           <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
             <Camera className="w-4 h-4 text-emerald-400" /> {t.mobile.selfiePpeCheck}
           </span>
-          <span className="text-[10px] font-mono text-emerald-400">AI Verified</span>
+          <span className="text-[10px] font-mono text-emerald-400">AI Sentinel Verified</span>
         </div>
 
         <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex flex-col items-center justify-center p-6 text-center">
@@ -147,11 +173,45 @@ export const WorkerMobileCompanion: React.FC = () => {
           disabled={isSelfieScanning}
           className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
         >
-          {isSelfieScanning ? 'Verifying PPE...' : t.mobile.scanMyPpe}
+          {isSelfieScanning ? 'Verifying PPE...' : `${t.mobile.scanMyPpe} (+30 XP)`}
         </button>
       </div>
 
-      {/* 3. Emergency SOS Panic Button */}
+      {/* 3. Daily Safety Checklist */}
+      <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <CheckSquare className="w-4 h-4" /> Shift Pre-Flight Safety Checklist
+          </span>
+          <span className="text-[10px] font-mono text-emerald-400">
+            {dailyChecklist.filter((c) => c.checked).length} / {dailyChecklist.length} Checked
+          </span>
+        </div>
+
+        <div className="space-y-2 text-xs">
+          {dailyChecklist.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => handleToggleChecklist(item.id)}
+              className={`p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
+                item.checked
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-slate-200'
+                  : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:border-slate-700'
+              }`}
+            >
+              {item.checked ? (
+                <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <Square className="w-4 h-4 text-slate-600 shrink-0" />
+              )}
+              <span className="flex-1 font-medium">{item.label}</span>
+              {item.checked && <span className="text-[10px] font-mono text-amber-400 font-bold">+15 XP</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 4. Emergency SOS Panic Button */}
       <div className="glass-panel p-5 rounded-2xl border border-rose-500/40 bg-rose-950/20 space-y-3 text-center">
         <h3 className="text-sm font-extrabold text-rose-400">
           {t.mobile.voiceSos}
