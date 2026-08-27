@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSafeSight } from '../../core/store';
 import {
   FileCheck2,
@@ -10,17 +10,51 @@ import {
   Clock,
   ShieldCheck,
   CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 import { soundEngine } from '../../core/speech';
+import { getAuditLog as dbGetAuditLog } from '@/actions/audit';
 
 export const AuditComplianceLog: React.FC = () => {
-  const { t, alerts, hazardReports } = useSafeSight();
+  const { t, alerts, hazardReports, isDbConnected } = useSafeSight();
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+  const [dbLogs, setDbLogs] = useState<{
+    id: string;
+    timestamp: string;
+    type: string;
+    zone: string;
+    title: string;
+    severity: string;
+    status: string;
+    assignedTo: string;
+  }[]>([]);
 
-  // Combine AI alerts & manual hazard reports into unified audit stream
+  // Load audit entries from NeonDB
+  useEffect(() => {
+    dbGetAuditLog({ limit: 100 })
+      .then((entries) => {
+        if (entries && entries.length > 0) {
+          const mapped = entries.map((e) => ({
+            id: e.eventId,
+            timestamp: e.timestamp ? new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent',
+            type: `${e.module} (${e.actor})`,
+            zone: e.zone || 'Zone B',
+            title: e.action + (e.details ? ` - ${e.details}` : ''),
+            severity: e.severity || 'medium',
+            status: 'Verified & Logged',
+            assignedTo: e.actor,
+          }));
+          setDbLogs(mapped);
+        }
+      })
+      .catch(() => {});
+  }, [alerts.length, hazardReports.length]);
+
+  // Combine DB logs with local state fallback
   const combinedLog = [
+    ...dbLogs,
     ...alerts.map((a) => ({
       id: a.id,
       timestamp: a.timestamp,
@@ -43,11 +77,15 @@ export const AuditComplianceLog: React.FC = () => {
     })),
   ];
 
-  const filteredLog = combinedLog.filter((item) => {
+  // Deduplicate by ID
+  const uniqueLogs = Array.from(new Map(combinedLog.map((item) => [item.id, item])).values());
+
+  const filteredLog = uniqueLogs.filter((item) => {
     const matchSearch =
       item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.zone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.title.toLowerCase().includes(searchTerm.toLowerCase());
+      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.type.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchSeverity =
       selectedSeverity === 'all' || item.severity === selectedSeverity;
@@ -80,9 +118,36 @@ export const AuditComplianceLog: React.FC = () => {
   };
 
   const handleExportPDF = () => {
+    const reportWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!reportWindow) {
+      setDownloadSuccess('Allow pop-ups to print the safety report');
+      return;
+    }
+    const escapeHtml = (value: string) =>
+      value.replace(
+        /[&<>"']/g,
+        (character) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] || character
+      );
+    const rows = filteredLog
+      .map(
+        (item) =>
+          `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.timestamp)}</td><td>${escapeHtml(
+            item.type
+          )}</td><td>${escapeHtml(item.zone)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(
+            item.severity
+          )}</td><td>${escapeHtml(item.status)}</td></tr>`
+      )
+      .join('');
+    reportWindow.document.write(
+      `<!doctype html><html><head><title>SafeSight Safety Audit</title><style>body{font-family:Arial,sans-serif;color:#172033;padding:32px}h1{margin-bottom:4px}p{color:#526070}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #cbd5e1;padding:7px;text-align:left}th{background:#e2e8f0}</style></head><body><h1>SafeSight Safety Audit Report</h1><p>Generated ${new Date().toLocaleString()} | ${
+        filteredLog.length
+      } records | ISO 45001 & Thai OSH Act B.E. 2554 Compliant</p><table><thead><tr><th>ID</th><th>Time</th><th>Source</th><th>Zone</th><th>Description</th><th>Severity</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
+    );
+    reportWindow.document.close();
+    reportWindow.focus();
+    reportWindow.print();
     soundEngine.playAlertBeep('success');
-    setDownloadSuccess('Executive Safety Summary Report (PDF) Generated');
-    setTimeout(() => setDownloadSuccess(null), 3000);
   };
 
   return (
@@ -102,6 +167,12 @@ export const AuditComplianceLog: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {isDbConnected && (
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+              ● NeonDB Immutable Audit
+            </span>
+          )}
+
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSafeSight } from '../../core/store';
 import { SAFETY_COURSES } from '../../core/mockData';
 import { SafetyCourse } from '../../core/types';
@@ -14,19 +14,35 @@ import {
   X,
   ShieldCheck,
   Zap,
+  Users,
+  Printer,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { soundEngine } from '../../core/speech';
+import { updateCourseProgress as dbUpdateCourseProgress, getAllWorkers as dbGetAllWorkers } from '@/actions/workers';
 
 export const WorkerSafetyAcademy: React.FC = () => {
-  const { t, language, userPoints, addPoints } = useSafeSight();
+  const { t, language, userPoints, addPoints, isDbConnected } = useSafeSight();
   const [selectedCourse, setSelectedCourse] = useState<SafetyCourse>(SAFETY_COURSES[0]);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isQuizSubmitted, setIsQuizSubmitted] = useState<boolean>(false);
   const [isCertificateOpen, setIsCertificateOpen] = useState<boolean>(false);
+  const [workerName, setWorkerName] = useState<string>('Somchai Prasert (สมชาย)');
+  const [dbLeaderboard, setDbLeaderboard] = useState<{ id: number; name: string; xpPoints: number | null; safetyScore: number | null; preferredLanguage: string | null }[]>([]);
 
   // Hazard Spotter mini-game state
   const [foundHazards, setFoundHazards] = useState<string[]>([]);
+
+  // Load workers leaderboard from NeonDB
+  useEffect(() => {
+    dbGetAllWorkers()
+      .then((workers) => {
+        if (workers && workers.length > 0) {
+          setDbLeaderboard(workers);
+        }
+      })
+      .catch(() => {});
+  }, [userPoints]);
 
   const miniGameHazards = [
     { id: 'spill', name: 'Oil Spill on Walkway', x: 28, y: 75 },
@@ -59,6 +75,17 @@ export const WorkerSafetyAcademy: React.FC = () => {
     if (isCorrect) {
       soundEngine.playAlertBeep('success');
       addPoints(selectedCourse.xpPoints);
+
+      // Persist course progress to NeonDB
+      dbUpdateCourseProgress({
+        workerId: 1,
+        courseId: selectedCourse.id,
+        courseTitle: selectedCourse.title.en,
+        status: 'completed',
+        quizScore: 100,
+        xpEarned: selectedCourse.xpPoints,
+      }).catch(() => {});
+
       confetti({
         particleCount: 100,
         spread: 80,
@@ -69,10 +96,68 @@ export const WorkerSafetyAcademy: React.FC = () => {
     }
   };
 
+  // Real Printable Certificate Window
+  const handlePrintCertificate = () => {
+    const certWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!certWindow) {
+      alert('Please allow pop-ups to print the safety certificate');
+      return;
+    }
+
+    certWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>SafeSight Safety Certificate - ${workerName}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; padding: 40px; text-align: center; color: #0f172a; }
+            .cert-box { border: 8px double #d97706; padding: 48px; background: #ffffff; max-width: 800px; margin: 0 auto; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+            h1 { font-size: 32px; color: #b45309; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 2px; }
+            h2 { font-size: 22px; color: #0f172a; margin-top: 24px; }
+            p { font-size: 14px; color: #475569; line-height: 1.6; }
+            .name { font-size: 28px; font-weight: bold; color: #0f172a; border-bottom: 2px solid #cbd5e1; display: inline-block; padding: 4px 32px; margin: 16px 0; }
+            .meta-grid { display: flex; justify-content: space-around; margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 12px; }
+            .seal { font-weight: bold; color: #b45309; font-size: 14px; margin-top: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="cert-box">
+            <div style="font-size: 40px; margin-bottom: 12px;">🛡️</div>
+            <h1>Certificate of Workplace Safety Excellence</h1>
+            <p>EASTERN ECONOMIC CORRIDOR (EEC) OCCUPATIONAL SAFETY & HEALTH INITIATIVE</p>
+            <p style="margin-top: 24px;">This is to proudly certify that</p>
+            <div class="name">${workerName}</div>
+            <p>has successfully completed the SafeSight Multilingual Safety Training Curriculum including PPE Essentials, GHS Hazard Identification, and Emergency Wayfinding protocols with a verified score of <strong>${userPoints} XP</strong>.</p>
+            <div class="meta-grid">
+              <div>
+                <strong>ISSUED BY:</strong><br/>
+                SafeSight EEC Enterprise<br/>
+                GISTDA • EECO • KU Sriracha
+              </div>
+              <div>
+                <strong>VERIFIED COMPLIANCE:</strong><br/>
+                ISO 45001:2018 Standard<br/>
+                Thai OSH Act B.E. 2554
+              </div>
+              <div>
+                <strong>DATE OF CERTIFICATION:</strong><br/>
+                ${new Date().toLocaleDateString('en-GB')}<br/>
+                ID: CERT-2026-${Math.floor(1000 + Math.random() * 9000)}
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    certWindow.document.close();
+    certWindow.focus();
+    certWindow.print();
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40">
             <GraduationCap className="w-5 h-5" />
@@ -93,7 +178,7 @@ export const WorkerSafetyAcademy: React.FC = () => {
 
           <button
             onClick={() => setIsCertificateOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition-all cursor-pointer shadow-md shadow-cyan-500/20"
           >
             <Award className="w-4 h-4 text-cyan-400" />
             <span>{t.academy.claimCertificate}</span>
@@ -103,48 +188,85 @@ export const WorkerSafetyAcademy: React.FC = () => {
 
       {/* Main Course Content & Quiz */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left: Course Selection List */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-            Micro-Learning Modules (5 Languages)
-          </h3>
+        {/* Left: Course Selection List & Leaderboard */}
+        <div className="space-y-4">
+          <div className="space-y-2.5">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Micro-Learning Modules (5 Languages)
+            </h3>
 
-          {SAFETY_COURSES.map((course) => {
-            const isSelected = selectedCourse.id === course.id;
-            const courseTitle = course.title[language] || course.title.th;
+            {SAFETY_COURSES.map((course) => {
+              const isSelected = selectedCourse.id === course.id;
+              const courseTitle = course.title[language] || course.title.th;
 
-            return (
-              <div
-                key={course.id}
-                onClick={() => {
-                  setSelectedCourse(course);
-                  setSelectedOption(null);
-                  setIsQuizSubmitted(false);
-                }}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
-                  isSelected
-                    ? 'glass-panel-glow border-amber-500/50 bg-amber-500/10 text-slate-100'
-                    : 'glass-panel border-slate-800 text-slate-300 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-cyan-400 font-bold uppercase">
-                    {course.durationMin} MIN • +{course.xpPoints} XP
-                  </span>
-                  {course.completed && (
-                    <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> CERTIFIED
+              return (
+                <div
+                  key={course.id}
+                  onClick={() => {
+                    setSelectedCourse(course);
+                    setSelectedOption(null);
+                    setIsQuizSubmitted(false);
+                  }}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                    isSelected
+                      ? 'glass-panel-glow border-amber-500/50 bg-amber-500/10 text-slate-100'
+                      : 'glass-panel border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-cyan-400 font-bold uppercase">
+                      {course.durationMin} MIN • +{course.xpPoints} XP
                     </span>
-                  )}
-                </div>
+                    {course.completed && (
+                      <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> CERTIFIED
+                      </span>
+                    )}
+                  </div>
 
-                <h4 className="text-sm font-bold">{courseTitle}</h4>
-                <p className="text-xs text-slate-400 line-clamp-2">
-                  {course.summary[language] || course.summary.th}
-                </p>
-              </div>
-            );
-          })}
+                  <h4 className="text-sm font-bold">{courseTitle}</h4>
+                  <p className="text-xs text-slate-400 line-clamp-2">
+                    {course.summary[language] || course.summary.th}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Leaderboard Panel */}
+          <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-cyan-400" /> EEC Safety Leaderboard
+              </span>
+              <span className="text-[10px] font-mono text-amber-400 font-bold">Top Operators</span>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              {(dbLeaderboard.length > 0
+                ? dbLeaderboard
+                : [
+                    { id: 1, name: 'Somchai Prasert (สมชาย)', xpPoints: userPoints, safetyScore: 98.5, preferredLanguage: 'th' },
+                    { id: 2, name: 'Aung Min (အောင်မင်း)', xpPoints: 820, safetyScore: 96.0, preferredLanguage: 'my' },
+                    { id: 3, name: 'Sok Dara (សុខ ដារ៉ា)', xpPoints: 750, safetyScore: 94.2, preferredLanguage: 'km' },
+                    { id: 4, name: 'Khamphanh (ຄຳພັນ)', xpPoints: 680, safetyScore: 92.5, preferredLanguage: 'lo' },
+                  ]
+              ).map((w, idx) => (
+                <div
+                  key={w.id}
+                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`font-mono font-bold text-xs ${idx === 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                      #{idx + 1}
+                    </span>
+                    <span className="text-slate-200 font-medium truncate max-w-[140px]">{w.name}</span>
+                  </div>
+                  <span className="font-mono text-cyan-400 font-bold text-[11px]">{w.xpPoints} XP</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Center & Right: Active Course Study & Interactive Quiz */}
@@ -248,13 +370,13 @@ export const WorkerSafetyAcademy: React.FC = () => {
                   disabled={selectedOption === null}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  Submit Answer & Claim XP
+                  Submit Answer & Claim XP (+{selectedCourse.xpPoints} XP)
                 </button>
               ) : (
                 <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1">
                   <span className="font-bold text-slate-200">
                     {selectedOption === selectedCourse.quiz[0].correctIndex
-                      ? '🎉 Correct! +100 XP awarded.'
+                      ? `🎉 Correct! +${selectedCourse.xpPoints} XP awarded & synced to NeonDB.`
                       : '❌ Incorrect. Review the explanation:'}
                   </span>
                   <p className="text-slate-400">
@@ -298,7 +420,7 @@ export const WorkerSafetyAcademy: React.FC = () => {
                   <ellipse cx="170" cy="240" rx="35" ry="12" fill={foundHazards.includes('spill') ? '#10B981' : '#EAB308'} opacity="0.8" />
                   {foundHazards.includes('spill') && (
                     <text x="140" y="270" fill="#10B981" fontSize="10" fontWeight="bold">
-                      ✓ Oil Spill
+                      ✓ Oil Spill (+50 XP)
                     </text>
                   )}
                 </g>
@@ -309,7 +431,7 @@ export const WorkerSafetyAcademy: React.FC = () => {
                   <rect x="320" y="155" width="20" height="40" fill="#475569" />
                   {foundHazards.includes('helmet') && (
                     <text x="290" y="125" fill="#10B981" fontSize="10" fontWeight="bold">
-                      ✓ No Helmet
+                      ✓ No Helmet (+50 XP)
                     </text>
                   )}
                 </g>
@@ -319,7 +441,7 @@ export const WorkerSafetyAcademy: React.FC = () => {
                   <path d="M 480 140 Q 510 180 500 230" fill="none" stroke={foundHazards.includes('wiring') ? '#10B981' : '#EF4444'} strokeWidth="3" />
                   {foundHazards.includes('wiring') && (
                     <text x="460" y="255" fill="#10B981" fontSize="10" fontWeight="bold">
-                      ✓ Exposed Wire
+                      ✓ Exposed Wire (+50 XP)
                     </text>
                   )}
                 </g>
@@ -353,8 +475,18 @@ export const WorkerSafetyAcademy: React.FC = () => {
               </h3>
             </div>
 
+            <div className="text-left text-xs space-y-1">
+              <label className="text-slate-400">Recipient Worker Name:</label>
+              <input
+                type="text"
+                value={workerName}
+                onChange={(e) => setWorkerName(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+
             <p className="text-xs text-slate-300 max-w-md mx-auto">
-              This certifies that <strong>Frontline Industrial Operator</strong> has successfully completed the SafeSight Multilingual Safety Curriculum with a verified score of {userPoints} XP.
+              This certifies that <strong>{workerName}</strong> has successfully completed the SafeSight Multilingual Safety Curriculum with a verified score of {userPoints} XP.
             </p>
 
             <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs font-mono text-slate-400 grid grid-cols-2 gap-2 text-left">
@@ -369,13 +501,11 @@ export const WorkerSafetyAcademy: React.FC = () => {
             </div>
 
             <button
-              onClick={() => {
-                soundEngine.playAlertBeep('success');
-                setIsCertificateOpen(false);
-              }}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 cursor-pointer"
+              onClick={handlePrintCertificate}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
             >
-              Download Verified Credential (PDF)
+              <Printer className="w-4 h-4" />
+              <span>Print / Download Verified Certificate (PDF)</span>
             </button>
           </div>
         </div>

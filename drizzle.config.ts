@@ -1,5 +1,9 @@
 import { defineConfig } from 'drizzle-kit';
 
+try {
+  process.loadEnvFile?.('.env.local');
+} catch {}
+
 export default defineConfig({
   schema: './src/db/schema.ts',
   out: './drizzle',
@@ -8,3 +12,4 @@ export default defineConfig({
     url: process.env.DATABASE_URL!,
   },
 });
+

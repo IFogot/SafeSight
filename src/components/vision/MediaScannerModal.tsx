@@ -14,6 +14,7 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanComplete, setScanComplete] = useState<boolean>(false);
   const [detectedViolations, setDetectedViolations] = useState<string[]>([]);
+  const [scanMessage, setScanMessage] = useState<string>('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
@@ -32,22 +33,18 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
     }
   };
 
-  const handleRunAiScan = () => {
-    if (!selectedImage) return;
+  const handleRunAiScan = async () => {
+    if (!selectedImage || !imageRef.current) return;
     setIsScanning(true);
+    setScanComplete(false);
+    const result = await visionEngine.analyzeFrame(imageRef.current);
+    setIsScanning(false);
+    setScanComplete(true);
+    const violations = result.violationLabels;
+    setDetectedViolations(violations);
+    setScanMessage(result.modelMessage || `${result.objects.length} objects detected at ${(result.fps || 0)} FPS.`);
 
-    setTimeout(() => {
-      setIsScanning(false);
-      setScanComplete(true);
-
-      // Simulated detection outcome
-      const hasSimulatedViolation = Math.random() > 0.4;
-      const violations = hasSimulatedViolation
-        ? ['Missing Hard Hat / Helmet', 'No Protective Cut Gloves']
-        : [];
-      setDetectedViolations(violations);
-
-      if (violations.length > 0) {
+    if (violations.length > 0) {
         addAlert({
           title: `Media Scan Violation: ${violations[0]}`,
           zone: 'Zone B (Uploaded Inspection)',
@@ -71,7 +68,6 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
           acknowledged: false,
         });
       }
-    }, 1200);
   };
 
   return (
@@ -157,7 +153,7 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
                   ) : (
                     <>
                       <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-                      <span>100% PPE Compliant — No Hazards Detected</span>
+                      <span>{scanMessage || 'No configured violation classes detected'}</span>
                     </>
                   )}
                 </div>
@@ -168,6 +164,7 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
                     ))}
                   </ul>
                 )}
+                {scanMessage && <p className="mt-2 text-[11px] opacity-80">{scanMessage}</p>}
               </div>
             )}
 

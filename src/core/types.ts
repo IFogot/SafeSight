@@ -19,7 +19,7 @@ export interface PPEDetectionResult {
 
 export interface BoundingBoxObject {
   id: string;
-  class: 'worker' | 'helmet' | 'no_helmet' | 'vest' | 'no_vest' | 'glasses' | 'forklift' | 'spill' | 'hazard_zone';
+  class: 'worker' | 'helmet' | 'no_helmet' | 'vest' | 'no_vest' | 'glasses' | 'boots' | 'gloves' | 'mask' | 'forklift' | 'spill' | 'hazard_zone';
   label: string;
   confidence: number;
   color: string;
