@@ -67,11 +67,16 @@ function iou(a: [number, number, number, number], b: [number, number, number, nu
 export class SafeSightVisionEngine {
   private session: ort.InferenceSession | null = null;
   private loadPromise: Promise<ort.InferenceSession | null> | null = null;
+  private loadError: string | null = null;
   public config = envConfig();
   private lastFrameTime = performance.now();
   private frameCount = 0;
   private currentFps = 30;
   private offscreenCanvas: HTMLCanvasElement | null = null;
+  private tensorCanvas: HTMLCanvasElement | null = null;
+  // Letterbox transform from the last toTensor() call: maps input-pixel coords
+  // back to normalized source coordinates.
+  private lastTransform: { scale: number; padX: number; padY: number; srcW: number; srcH: number } | null = null;
 
   public get modelConfigured() {
     return Boolean(this.config.modelUrl);
@@ -81,15 +86,25 @@ export class SafeSightVisionEngine {
     if (this.session) return this.session;
     if (!this.config.modelUrl) return null;
     if (!this.loadPromise) {
+      if (typeof window !== 'undefined') {
+        // Serve ORT WASM binaries from /public instead of the default CDN
+        (ort.env.wasm as unknown as { wasmPaths: string }).wasmPaths = '/';
+      }
       this.loadPromise = ort.InferenceSession.create(this.config.modelUrl, {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
       })
         .then((session) => {
           this.session = session;
+          this.loadError = null;
+          console.info('[SafeSight Vision] ONNX YOLO model loaded:', this.config.modelUrl);
           return session;
         })
-        .catch(() => null);
+        .catch((err: unknown) => {
+          this.loadError = err instanceof Error ? err.message : String(err);
+          console.warn('[SafeSight Vision] Model failed to load:', this.loadError);
+          return null;
+        });
     }
     return this.loadPromise;
   }
@@ -124,43 +139,56 @@ export class SafeSightVisionEngine {
         const tensor = output[session.outputNames[0]] as ort.Tensor;
         const detections = this.decode(tensor, userConfidence, userIou);
 
-        if (detections.length > 0) {
-          const objects = detections.map((d, index) => this.toObject(d, index));
-          const persons = objects.filter((object) => object.label.toLowerCase() === 'person');
-          const ppe = objects
-            .filter((object) => this.toPpeType(object.label))
-            .map((object) => ({
-              id: object.id,
-              type: this.toPpeType(object.label) as PPEType,
-              label: object.label,
-              isCompliant: !object.isViolation,
-              confidence: object.confidence,
-              bbox: [object.x / 100, object.y / 100, object.width / 100, object.height / 100] as [number, number, number, number],
-              timestamp: new Date().toISOString(),
-            }));
-          const violations = objects.filter((object) => object.isViolation).map((object) => object.label);
-          const compliantCount = ppe.filter((p) => p.isCompliant).length;
-          const compliancePct = ppe.length > 0 ? Math.round((compliantCount / ppe.length) * 100) : 100;
+        const objects = detections.map((d, index) => this.toObject(d, index));
+        const persons = objects.filter((object) => object.label.toLowerCase() === 'person');
+        const ppe = objects
+          .filter((object) => this.toPpeType(object.label))
+          .map((object) => ({
+            id: object.id,
+            type: this.toPpeType(object.label) as PPEType,
+            label: object.label,
+            isCompliant: !object.isViolation,
+            confidence: object.confidence,
+            bbox: [object.x / 100, object.y / 100, object.width / 100, object.height / 100] as [number, number, number, number],
+            timestamp: new Date().toISOString(),
+          }));
+        const violations = objects.filter((object) => object.isViolation).map((object) => object.label);
+        const compliantCount = ppe.filter((p) => p.isCompliant).length;
+        const compliancePct = ppe.length > 0 ? Math.round((compliantCount / ppe.length) * 100) : 100;
 
-          return {
-            objects,
-            ppeResults: ppe,
-            compliancePercentage: compliancePct,
-            hasViolation: violations.length > 0,
-            violationLabels: violations,
-            personCount: Math.max(1, persons.length),
-            fps: this.currentFps || 30,
-            modelStatus: 'ready',
-            modelMessage: `ONNX YOLOv8 WASM • ${objects.length} Detections`,
-            engineMode: 'yolo_onnx',
-          };
-        }
+        return {
+          objects,
+          ppeResults: ppe,
+          compliancePercentage: compliancePct,
+          hasViolation: violations.length > 0,
+          violationLabels: violations,
+          personCount: persons.length,
+          fps: this.currentFps || 30,
+          modelStatus: 'ready' as const,
+          modelMessage:
+            detections.length > 0
+              ? `ONNX YOLOv8 WASM • ${objects.length} Detections`
+              : `ONNX YOLOv8 WASM • 0 detections (try lowering confidence below ${(userConfidence ?? this.config.confidenceThreshold ?? 0.35) * 100}%)`,
+          engineMode: 'yolo_onnx' as const,
+        };
       } catch (err) {
-        console.warn('ONNX inference error, falling back to Realtime CV:', err);
+        console.warn('[SafeSight Vision] ONNX inference error:', err);
+        return {
+          objects: [],
+          ppeResults: [],
+          compliancePercentage: 100,
+          hasViolation: false,
+          violationLabels: [],
+          personCount: 0,
+          fps: this.currentFps || 30,
+          modelStatus: 'error' as const,
+          modelMessage: `ONNX inference failed: ${err instanceof Error ? err.message : String(err)}`,
+          engineMode: 'yolo_onnx' as const,
+        };
       }
     }
 
-    // 3. High-Accuracy Real-Time Browser Computer Vision (Pixel/Color/PPE-Feature Extraction)
+    // 3. Model unavailable — pixel/color heuristic fallback (approximate, static region analysis)
     return this.analyzeRealtimeCV(source);
   }
 
@@ -367,7 +395,9 @@ export class SafeSightVisionEngine {
       personCount: 1,
       fps: this.currentFps || 30,
       modelStatus: 'ready',
-      modelMessage: `SafeSight Realtime CV Sentinel • Active 60Hz`,
+      modelMessage: this.loadError
+        ? `Model load failed (${this.loadError.slice(0, 80)}) — color-heuristic CV fallback`
+        : `Model not loaded — color-heuristic CV fallback (approximate)`,
       engineMode: 'realtime_cv',
     };
   }
@@ -509,12 +539,45 @@ export class SafeSightVisionEngine {
 
   private toTensor(source: Source) {
     const size = this.config.inputSize || 640;
-    const canvas = document.createElement('canvas');
+    if (!this.tensorCanvas) {
+      this.tensorCanvas = document.createElement('canvas');
+    }
+    const canvas = this.tensorCanvas;
     canvas.width = size;
     canvas.height = size;
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) throw new Error('Canvas is unavailable');
-    context.drawImage(source, 0, 0, size, size);
+
+    // Source intrinsic dimensions (video/image), falling back to client size
+    const srcW =
+      'videoWidth' in source && source.videoWidth > 0
+        ? source.videoWidth
+        : 'naturalWidth' in source && source.naturalWidth > 0
+        ? source.naturalWidth
+        : 'width' in source && (source as HTMLCanvasElement).width > 0
+        ? (source as HTMLCanvasElement).width
+        : size;
+    const srcH =
+      'videoHeight' in source && source.videoHeight > 0
+        ? source.videoHeight
+        : 'naturalHeight' in source && source.naturalHeight > 0
+        ? source.naturalHeight
+        : 'height' in source && (source as HTMLCanvasElement).height > 0
+        ? (source as HTMLCanvasElement).height
+        : size;
+
+    // Letterbox: preserve aspect ratio, pad the shorter axis (YOLO training layout)
+    const scale = Math.min(size / srcW, size / srcH);
+    const drawW = srcW * scale;
+    const drawH = srcH * scale;
+    const padX = (size - drawW) / 2;
+    const padY = (size - drawH) / 2;
+    this.lastTransform = { scale, padX, padY, srcW, srcH };
+
+    context.fillStyle = '#000000';
+    context.fillRect(0, 0, size, size);
+    context.drawImage(source, padX, padY, drawW, drawH);
+
     const pixels = context.getImageData(0, 0, size, size).data;
     const data = new Float32Array(3 * size * size);
     for (let i = 0; i < size * size; i += 1) {
@@ -528,13 +591,18 @@ export class SafeSightVisionEngine {
   private decode(tensor: ort.Tensor, customConf?: number, customIou?: number) {
     const confThresh = customConf ?? this.config.confidenceThreshold ?? 0.35;
     const iouThresh = customIou ?? this.config.iouThreshold ?? 0.45;
+    const size = this.config.inputSize || 640;
+    const transform = this.lastTransform;
 
     const data = tensor.data as Float32Array;
     const dims = tensor.dims;
-    const channelsFirst = dims.length === 3 && dims[1] < dims[2];
+    // Support [boxes, attrs] / [1, attrs, boxes] / [1, boxes, attrs] layouts
+    const d1 = dims[dims.length - 2];
+    const d2 = dims[dims.length - 1];
+    const channelsFirst = d1 < d2;
     const candidates: { box: [number, number, number, number]; score: number; classIndex: number }[] = [];
-    const count = channelsFirst ? dims[2] : dims[1];
-    const attributes = channelsFirst ? dims[1] : dims[2];
+    const count = channelsFirst ? d2 : d1;
+    const attributes = channelsFirst ? d1 : d2;
 
     for (let row = 0; row < count; row += 1) {
       const values = (index: number) => data[channelsFirst ? index * count + row : row * attributes + index];
@@ -549,7 +617,21 @@ export class SafeSightVisionEngine {
       }
       if (bestScore < confThresh) continue;
       const [cx, cy, width, height] = [values(0), values(1), values(2), values(3)];
-      candidates.push({ box: [cx - width / 2, cy - height / 2, width, height], score: bestScore, classIndex: bestClass });
+      // Model emits input-pixel coords (0..inputSize); map back through the
+      // letterbox transform to normalized source coords (0..1)
+      let x: number, y: number, w: number, h: number;
+      if (transform) {
+        x = (cx - width / 2 - transform.padX) / transform.scale / transform.srcW;
+        y = (cy - height / 2 - transform.padY) / transform.scale / transform.srcH;
+        w = width / transform.scale / transform.srcW;
+        h = height / transform.scale / transform.srcH;
+      } else {
+        x = (cx - width / 2) / size;
+        y = (cy - height / 2) / size;
+        w = width / size;
+        h = height / size;
+      }
+      candidates.push({ box: [x, y, w, h], score: bestScore, classIndex: bestClass });
     }
 
     const kept: typeof candidates = [];
@@ -569,7 +651,7 @@ export class SafeSightVisionEngine {
     const violation = /no[_ -]?(helmet|hat|vest|glove|boot)|missing|restricted|fall|spill|hazard/i.test(label);
     return {
       id: `yolo-${index}`,
-      class: 'worker',
+      class: label.toLowerCase() === 'person' ? 'worker' : 'hazard_zone',
       label,
       confidence: detection.score,
       color: violation ? '#EF4444' : '#10B981',
