@@ -1,17 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSafeSight } from '../../core/store';
 import {
   BellRing,
   AlertOctagon,
   Users,
-  Navigation,
-  Send,
   MessageSquare,
   Smartphone,
   Radio,
   CheckCircle2,
   Volume2,
-  ShieldAlert,
 } from 'lucide-react';
 import { soundEngine } from '../../core/speech';
 
@@ -21,6 +18,11 @@ export const EmergencyDispatchHub: React.FC = () => {
     'Toxic Gas Leak Detected in Zone A - Evacuate Immediately'
   );
   const [headcountChecked, setHeadcountChecked] = useState<number>(evacuation.accountedPersonnel);
+
+  // FIX BUG-03: Sync headcount when evacuation state changes
+  useEffect(() => {
+    setHeadcountChecked(evacuation.accountedPersonnel);
+  }, [evacuation.accountedPersonnel, evacuation.isActive]);
 
   const handleSimulateCheckIn = () => {
     setHeadcountChecked((prev) => Math.min(evacuation.totalPersonnel, prev + 12));

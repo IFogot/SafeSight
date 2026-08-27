@@ -1,23 +1,25 @@
 {
   "name": "safesight",
   "private": true,
-  "version": "1.0.0",
-  "type": "module",
+  "version": "2.0.0",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "npx tsx src/db/seed.ts"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.0.9",
+    "@neondatabase/serverless": "^0.10.4",
+    "@tailwindcss/postcss": "^4.0.9",
     "canvas-confetti": "^1.9.4",
-    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.39.0",
     "lucide-react": "^0.475.0",
-    "motion": "^12.4.7",
+    "next": "^15.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.1",
-    "tailwind-merge": "^3.0.1",
     "tailwindcss": "^4.0.9"
   },
   "devDependencies": {
@@ -25,8 +27,8 @@
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.7.3",
-    "vite": "^6.2.0"
+    "drizzle-kit": "^0.30.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
   }
 }

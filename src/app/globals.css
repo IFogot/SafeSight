@@ -11,6 +11,7 @@
     --accent-rose: #EF4444;
   }
 
+  /* FIX INC-02: Light theme CSS variables */
   .light {
     --bg-main: #F1F5F9;
     --card-bg: rgba(255, 255, 255, 0.95);
@@ -29,8 +30,38 @@ body {
   overflow-x: hidden;
 }
 
+.light body,
+.light .glass-panel,
+.light .glass-panel-glow {
+  color: #0F172A;
+}
+
 .light body {
   color: #0F172A;
+}
+
+/* Light mode overrides for common patterns */
+.light .bg-slate-900,
+.light .bg-slate-950 {
+  background-color: #F8FAFC !important;
+}
+
+.light .text-slate-100,
+.light .text-slate-200 {
+  color: #1E293B !important;
+}
+
+.light .text-slate-300 {
+  color: #334155 !important;
+}
+
+.light .text-slate-400 {
+  color: #64748B !important;
+}
+
+.light .border-slate-800,
+.light .border-slate-700 {
+  border-color: #CBD5E1 !important;
 }
 
 /* Glassmorphism Panels */
@@ -83,6 +114,7 @@ body {
   animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* FIX INC-08: Emergency strobe animation (was missing) */
 @keyframes emergency-strobe {
   0%, 100% { background-color: rgba(239, 68, 68, 0.15); }
   50% { background-color: rgba(239, 68, 68, 0.5); }

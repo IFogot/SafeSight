@@ -111,7 +111,7 @@ export const Navbar: React.FC = () => {
           {/* Audio Voice Synthesizer Toggle */}
           <button
             onClick={toggleAudioMute}
-            title={isAudioMuted ? t.vision.voiceAlarmOn : t.vision.voiceAlarmOff}
+            title={isAudioMuted ? t.vision.voiceAlarmOff : t.vision.voiceAlarmOn}
             className={`p-2 rounded-lg border transition-all ${
               isAudioMuted
                 ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'

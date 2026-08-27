@@ -147,4 +147,21 @@ class SafeSightAudioEngine {
   }
 }
 
-export const soundEngine = new SafeSightAudioEngine();
+// Lazy-initialize to prevent SSR crash (AudioContext doesn't exist on server)
+let _soundEngine: SafeSightAudioEngine | null = null;
+export const soundEngine: SafeSightAudioEngine = new Proxy({} as SafeSightAudioEngine, {
+  get(_target, prop) {
+    if (typeof window === 'undefined') {
+      // Return no-op on server
+      return () => {};
+    }
+    if (!_soundEngine) {
+      _soundEngine = new SafeSightAudioEngine();
+    }
+    const value = (_soundEngine as unknown as Record<string, unknown>)[prop as string];
+    if (typeof value === 'function') {
+      return value.bind(_soundEngine);
+    }
+    return value;
+  },
+});

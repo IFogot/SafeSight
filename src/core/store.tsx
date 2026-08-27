@@ -51,7 +51,10 @@ const SafeSightContext = createContext<SafeSightContextType | null>(null);
 
 export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<SupportedLanguage>(() => {
-    return (localStorage.getItem('safesight_lang') as SupportedLanguage) || 'th';
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('safesight_lang') as SupportedLanguage) || 'th';
+    }
+    return 'th';
   });
 
   const [userRole, setUserRole] = useState<UserRole>('safety_officer');
@@ -81,17 +84,21 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const setLanguage = (lang: SupportedLanguage) => {
     setLanguageState(lang);
-    localStorage.setItem('safesight_lang', lang);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('safesight_lang', lang);
+    }
   };
 
   const setIsDarkTheme = (isDark: boolean) => {
     setIsDarkThemeState(isDark);
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.add('light');
-      document.documentElement.classList.remove('dark');
+    if (typeof window !== 'undefined') {
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+      } else {
+        document.documentElement.classList.add('light');
+        document.documentElement.classList.remove('dark');
+      }
     }
   };
 

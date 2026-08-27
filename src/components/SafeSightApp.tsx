@@ -1,18 +1,21 @@
+'use client';
+
 import React from 'react';
-import { SafeSightProvider, useSafeSight } from './core/store';
-import { Navbar } from './components/layout/Navbar';
-import { Sidebar } from './components/layout/Sidebar';
-import { LiveVisionMonitor } from './components/vision/LiveVisionMonitor';
-import { FactoryFloorTwin } from './components/digitaltwin/FactoryFloorTwin';
-import { EECRegionalMap } from './components/digitaltwin/EECRegionalMap';
-import { HazardReporter } from './components/hazard/HazardReporter';
-import { PredictiveRiskDashboard } from './components/analytics/PredictiveRiskDashboard';
-import { IoTSensorTelemetry } from './components/iot/IoTSensorTelemetry';
-import { WorkerSafetyAcademy } from './components/academy/WorkerSafetyAcademy';
-import { EmergencyDispatchHub } from './components/emergency/EmergencyDispatchHub';
-import { WorkerMobileCompanion } from './components/mobile/WorkerMobileCompanion';
-import { AuditComplianceLog } from './components/audit/AuditComplianceLog';
-import { AlertOctagon, Shield, Zap } from 'lucide-react';
+import { SafeSightProvider, useSafeSight } from '@/core/store';
+import { Navbar } from '@/components/layout/Navbar';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { LiveVisionMonitor } from '@/components/vision/LiveVisionMonitor';
+import { FactoryFloorTwin } from '@/components/digitaltwin/FactoryFloorTwin';
+import { EECRegionalMap } from '@/components/digitaltwin/EECRegionalMap';
+import { HazardReporter } from '@/components/hazard/HazardReporter';
+import { PredictiveRiskDashboard } from '@/components/analytics/PredictiveRiskDashboard';
+import { IoTSensorTelemetry } from '@/components/iot/IoTSensorTelemetry';
+import { WorkerSafetyAcademy } from '@/components/academy/WorkerSafetyAcademy';
+import { EmergencyDispatchHub } from '@/components/emergency/EmergencyDispatchHub';
+import { WorkerMobileCompanion } from '@/components/mobile/WorkerMobileCompanion';
+import { AuditComplianceLog } from '@/components/audit/AuditComplianceLog';
+// FIX BUG-01: Removed unused import `Zap`
+import { AlertOctagon, Shield } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
   const { activeNavTab, evacuation, cancelEvacuation } = useSafeSight();
@@ -86,7 +89,7 @@ const MainLayout: React.FC = () => {
             <span className="font-bold text-slate-200">SafeSight EEC Enterprise</span>
             <span className="text-slate-500">|</span>
             <span className="italic text-slate-400">
-              "มองเห็นความเสี่ยง ป้องกันก่อนเกิดเหตุ"
+              &quot;มองเห็นความเสี่ยง ป้องกันก่อนเกิดเหตุ&quot;
             </span>
           </div>
 
@@ -107,7 +110,7 @@ const MainLayout: React.FC = () => {
   );
 };
 
-export const App: React.FC = () => {
+export const SafeSightApp: React.FC = () => {
   return (
     <SafeSightProvider>
       <MainLayout />
@@ -115,4 +118,4 @@ export const App: React.FC = () => {
   );
 };
 
-export default App;
+export default SafeSightApp;

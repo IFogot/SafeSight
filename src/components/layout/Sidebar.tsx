@@ -96,7 +96,7 @@ export const Sidebar: React.FC = () => {
     <aside className="w-full md:w-64 shrink-0 glass-panel border-r border-slate-800/80 p-3 flex flex-col justify-between">
       <div className="space-y-1">
         <div className="px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-slate-400 font-bold">
-          Navigation Hub
+          {t.appName}
         </div>
 
         {navItems.map((item) => {
