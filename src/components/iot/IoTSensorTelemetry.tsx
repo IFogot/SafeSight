@@ -26,7 +26,7 @@ import {
 import { soundEngine } from '../../core/speech';
 
 export const IoTSensorTelemetry: React.FC = () => {
-  const { t, language, iotTelemetry, updateTelemetry, addAlert, isDbConnected } = useSafeSight();
+  const { t, language, iotTelemetry, updateTelemetry, injectTelemetrySpike, addAlert, isDbConnected } = useSafeSight();
   const [selectedZone, setSelectedZone] = useState<string>('Zone A');
   const [chartHistory, setChartHistory] = useState<
     { time: string; gas: number; temp: number; noise: number; vibration: number }[]
@@ -70,8 +70,9 @@ export const IoTSensorTelemetry: React.FC = () => {
 
   // Interactive Spike Injectors for Professor Testing
   const handleInjectSpike = (type: 'gas' | 'temp' | 'noise' | 'normal') => {
+    injectTelemetrySpike(selectedZone, type);
+
     if (type === 'gas') {
-      updateTelemetry(selectedZone, { toxicGasH2S: 18.8, status: 'danger' });
       soundEngine.playAlertBeep('critical');
       addAlert({
         title: `CRITICAL: Toxic H2S Gas Threshold Spike (18.8 ppm) in ${selectedZone}`,
@@ -95,20 +96,9 @@ export const IoTSensorTelemetry: React.FC = () => {
         },
         acknowledged: false,
       });
-    } else if (type === 'temp') {
-      updateTelemetry(selectedZone, { temperature: 46.5, status: 'warning' });
-      soundEngine.playAlertBeep('warning');
-    } else if (type === 'noise') {
-      updateTelemetry(selectedZone, { noiseLevel: 96.2, status: 'warning' });
+    } else if (type === 'temp' || type === 'noise') {
       soundEngine.playAlertBeep('warning');
     } else {
-      updateTelemetry(selectedZone, {
-        toxicGasH2S: 3.5,
-        temperature: 32.0,
-        noiseLevel: 75.0,
-        vibration: 1.8,
-        status: 'normal',
-      });
       soundEngine.playAlertBeep('success');
     }
   };

@@ -12,8 +12,8 @@ import {
   INITIAL_CCTV_CHANNELS,
   INITIAL_SAFETY_ALERTS,
   INITIAL_HAZARD_REPORTS,
-  INITIAL_IOT_TELEMETRY,
 } from './mockData';
+import { createDefaultTelemetryPoints, createIoTTelemetryEngine, IoTTelemetryEngine } from '../engine/iotTelemetry';
 import { soundEngine } from './speech';
 import { translations, TranslationDict } from './i18n';
 import { createAlert as dbCreateAlert, getAlerts as dbGetAlerts, acknowledgeAlert as dbAcknowledgeAlert, clearAllAlerts as dbClearAllAlerts } from '@/actions/alerts';
@@ -43,6 +43,7 @@ interface SafeSightContextType {
   upvoteHazardReport: (id: string) => void;
   iotTelemetry: IoTTelemetryPoint[];
   updateTelemetry: (zone: string, data: Partial<IoTTelemetryPoint>) => void;
+  injectTelemetrySpike: (zone: string, type: 'gas' | 'temp' | 'noise' | 'normal') => void;
   evacuation: EvacuationPlanState;
   triggerEvacuation: (reason: string) => void;
   cancelEvacuation: () => void;
@@ -55,24 +56,58 @@ interface SafeSightContextType {
 
 const SafeSightContext = createContext<SafeSightContextType | null>(null);
 
-export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<SupportedLanguage>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('safesight_lang') as SupportedLanguage) || 'th';
-    }
-    return 'th';
-  });
+const LS_KEYS = {
+  language: 'safesight_lang',
+  role: 'safesight_role',
+  theme: 'safesight_theme',
+  mute: 'safesight_mute',
+  nav: 'safesight_nav',
+  cctvSources: 'safesight_cctv_sources',
+};
 
-  const [userRole, setUserRole] = useState<UserRole>('safety_officer');
-  const [isDarkTheme, setIsDarkThemeState] = useState<boolean>(true);
-  const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
+function safeGet<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeSet<T>(key: string, value: T) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore storage quota or private mode errors
+  }
+}
+
+export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [language, setLanguageState] = useState<SupportedLanguage>(() =>
+    safeGet<SupportedLanguage>(LS_KEYS.language, 'th')
+  );
+
+  const [userRole, setUserRole] = useState<UserRole>(() =>
+    safeGet<UserRole>(LS_KEYS.role, 'safety_officer')
+  );
+  const [isDarkTheme, setIsDarkThemeState] = useState<boolean>(() =>
+    safeGet<boolean>(LS_KEYS.theme, true)
+  );
+  const [isAudioMuted, setIsAudioMuted] = useState<boolean>(() =>
+    safeGet<boolean>(LS_KEYS.mute, false)
+  );
   const [alerts, setAlerts] = useState<SafetyAlert[]>(INITIAL_SAFETY_ALERTS);
   const [channels, setChannels] = useState<CCTVChannel[]>(INITIAL_CCTV_CHANNELS);
   const [hazardReports, setHazardReports] = useState<HazardReport[]>(INITIAL_HAZARD_REPORTS);
-  const [iotTelemetry, setIotTelemetry] = useState<IoTTelemetryPoint[]>(INITIAL_IOT_TELEMETRY);
-  const [activeNavTab, setActiveNavTab] = useState<string>('vision');
+  const [iotTelemetry, setIotTelemetry] = useState<IoTTelemetryPoint[]>(() => createDefaultTelemetryPoints());
+  const [activeNavTab, setActiveNavTabState] = useState<string>(() =>
+    safeGet<string>(LS_KEYS.nav, 'vision')
+  );
   const [userPoints, setUserPoints] = useState<number>(350);
   const [isDbConnected, setIsDbConnected] = useState<boolean>(false);
+  const iotEngineRef = React.useRef<IoTTelemetryEngine | null>(null);
 
   const [evacuation, setEvacuation] = useState<EvacuationPlanState>({
     isActive: false,
@@ -88,6 +123,21 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       iotStrobe: true,
     },
   });
+
+  // Apply persisted theme and audio settings on client mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (isDarkTheme) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+      } else {
+        document.documentElement.classList.add('light');
+        document.documentElement.classList.remove('dark');
+      }
+      soundEngine.isMuted = isAudioMuted;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 1. Initial Data Sync from NeonDB on Client Mount
   useEffect(() => {
@@ -169,13 +219,17 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const setLanguage = (lang: SupportedLanguage) => {
     setLanguageState(lang);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('safesight_lang', lang);
-    }
+    safeSet(LS_KEYS.language, lang);
+  };
+
+  const setUserRolePersisted = (role: UserRole) => {
+    setUserRole(role);
+    safeSet(LS_KEYS.role, role);
   };
 
   const setIsDarkTheme = (isDark: boolean) => {
     setIsDarkThemeState(isDark);
+    safeSet(LS_KEYS.theme, isDark);
     if (typeof window !== 'undefined') {
       if (isDark) {
         document.documentElement.classList.add('dark');
@@ -191,6 +245,12 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const nextMuted = !isAudioMuted;
     setIsAudioMuted(nextMuted);
     soundEngine.isMuted = nextMuted;
+    safeSet(LS_KEYS.mute, nextMuted);
+  };
+
+  const setActiveNavTab = (tab: string) => {
+    setActiveNavTabState(tab);
+    safeSet(LS_KEYS.nav, tab);
   };
 
   // Add Alert with Optimistic UI + NeonDB Persistence + Audit Logging
@@ -347,6 +407,10 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
   };
 
+  const injectTelemetrySpike = (zone: string, type: 'gas' | 'temp' | 'noise' | 'normal') => {
+    iotEngineRef.current?.injectSpike(zone, type);
+  };
+
   const triggerEvacuation = (reason: string) => {
     setEvacuation({
       isActive: true,
@@ -418,37 +482,19 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     soundEngine.playAlertBeep('success');
   };
 
-  // Periodic realistic IoT fluctuations
+  // Realistic IoT telemetry simulator engine
   useEffect(() => {
-    const interval = setInterval(() => {
-      setIotTelemetry((prev) =>
-        prev.map((pt) => {
-          const deltaGas = (Math.random() - 0.5) * 0.2;
-          const deltaTemp = (Math.random() - 0.5) * 0.15;
-          const deltaNoise = (Math.random() - 0.5) * 1.2;
-          const deltaPower = (Math.random() - 0.5) * 1.5;
+    iotEngineRef.current = createIoTTelemetryEngine(
+      () => iotTelemetry,
+      (points) => setIotTelemetry(points)
+    );
+    iotEngineRef.current.start(4000);
 
-          const newGas = Math.max(0, parseFloat((pt.toxicGasH2S + deltaGas).toFixed(1)));
-          const newTemp = Math.max(20, parseFloat((pt.temperature + deltaTemp).toFixed(1)));
-          const newNoise = Math.max(60, parseFloat((pt.noiseLevel + deltaNoise).toFixed(1)));
-          const newPower = Math.max(10, parseFloat((pt.powerConsumption + deltaPower).toFixed(1)));
-
-          const isDanger = newGas > 15 || newTemp > 42 || newNoise > 92;
-          const isWarning = newGas > 10 || newTemp > 38 || newNoise > 85;
-
-          return {
-            ...pt,
-            toxicGasH2S: newGas,
-            temperature: newTemp,
-            noiseLevel: newNoise,
-            powerConsumption: newPower,
-            status: isDanger ? 'danger' : isWarning ? 'warning' : 'normal',
-          };
-        })
-      );
-    }, 4000);
-
-    return () => clearInterval(interval);
+    return () => {
+      iotEngineRef.current?.stop();
+      iotEngineRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const t = translations[language] || translations.th;
@@ -460,7 +506,7 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setLanguage,
         t,
         userRole,
-        setUserRole,
+        setUserRole: setUserRolePersisted,
         isDarkTheme,
         setIsDarkTheme,
         isAudioMuted,
@@ -476,6 +522,7 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         upvoteHazardReport,
         iotTelemetry,
         updateTelemetry,
+        injectTelemetrySpike,
         evacuation,
         triggerEvacuation,
         cancelEvacuation,

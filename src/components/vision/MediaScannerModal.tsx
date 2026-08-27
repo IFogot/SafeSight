@@ -34,40 +34,48 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
   };
 
   const handleRunAiScan = async () => {
-    if (!selectedImage || !imageRef.current) return;
+    if (!selectedImage || !imageRef.current || !canvasRef.current) return;
     setIsScanning(true);
     setScanComplete(false);
+
     const result = await visionEngine.analyzeFrame(imageRef.current);
+
+    // Draw overlay boxes on the preview canvas
+    const canvas = canvasRef.current;
+    canvas.width = imageRef.current.naturalWidth || imageRef.current.clientWidth;
+    canvas.height = imageRef.current.naturalHeight || imageRef.current.clientHeight;
+    visionEngine.renderOverlay(canvas, result, true);
+
     setIsScanning(false);
     setScanComplete(true);
     const violations = result.violationLabels;
     setDetectedViolations(violations);
-    setScanMessage(result.modelMessage || `${result.objects.length} objects detected at ${(result.fps || 0)} FPS.`);
+    setScanMessage(result.modelMessage || `${result.objects.length} objects detected.`);
 
     if (violations.length > 0) {
-        addAlert({
-          title: `Media Scan Violation: ${violations[0]}`,
-          zone: 'Zone B (Uploaded Inspection)',
-          location: 'Station Inspection #07',
-          riskLevel: 'high',
-          type: 'ppe_violation',
-          details: {
-            th: 'ระบบตรวจพบการไม่สวมหมวกนิรภัยและถุงมือกันบาดจากภาพถ่ายที่อัปโหลด',
-            en: 'Detected missing safety helmet and cut-resistant gloves from uploaded photo.',
-            my: 'တင်ထားသော ဓာတ်ပုံတွင် ဦးထုပ်နှင့် လက်အိတ် မပါရှိကြောင်း စစ်ဆေးတွေ့ရှိရပါသည်',
-            km: 'បានរកឃើញថាមិនមានពាក់មួក និងស្រោមដៃពីរូបថតដែលបានបញ្ចូល',
-            lo: 'ກວດພົບການບໍ່ໃສ່ໝວກນິລະໄພ ແລະ ຖົງມືຈາກຮູບທີ່ອັບໂຫຼດ',
-          },
-          audioText: {
-            th: 'เตือนอันตราย! กรุณาสวมใส่อุปกรณ์คุ้มครองความปลอดภัยให้ครบถ้วน',
-            en: 'Warning! Please ensure complete PPE equipment is worn.',
-            my: 'သတိပေးချက်! PPE ကိရိယာအားလုံးကို ပြည့်စုံစွာ ဝတ်ဆင်ပါ',
-            km: 'ការព្រមាន! សូមពាក់ឧបករណ៍ការពារឱ្យបានគ្រប់គ្រាន់',
-            lo: 'ເຕືອນອັນຕະລາຍ! ກະລຸນາໃສ່ອຸປະກອນນິລະໄພໃຫ້ຄົບຖ້ວນ',
-          },
-          acknowledged: false,
-        });
-      }
+      addAlert({
+        title: `Media Scan Violation: ${violations[0]}`,
+        zone: 'Zone B (Uploaded Inspection)',
+        location: 'Station Inspection #07',
+        riskLevel: 'high',
+        type: 'ppe_violation',
+        details: {
+          th: `ระบบตรวจพบ ${violations.join(', ')} จากภาพถ่ายที่อัปโหลด`,
+          en: `Detected ${violations.join(', ')} from uploaded photo.`,
+          my: `တင်ထားသော ဓာတ်ပုံတွင် ${violations.join(', ')} တွေ့ရှိသည်`,
+          km: `បានរកឃើញ ${violations.join(', ')} ពីរូបថតដែលបានបញ្ចូល`,
+          lo: `ກວດພົບ ${violations.join(', ')} ຈາກຮູບທີ່ອັບໂຫຼດ`,
+        },
+        audioText: {
+          th: 'เตือนอันตราย! กรุณาสวมใส่อุปกรณ์คุ้มครองความปลอดภัยให้ครบถ้วน',
+          en: 'Warning! Please ensure complete PPE equipment is worn.',
+          my: 'သတိပေးချက်! PPE ကိရိယာအားလုံးကို ပြည့်စုံစွာ ဝတ်ဆင်ပါ',
+          km: 'ការព្រមាន! សូមពាក់ឧបករណ៍ការពារឱ្យបានគ្រប់គ្រាន់',
+          lo: 'ເຕືອນອັນຕະລາຍ! ກະລຸນາໃສ່ອຸປະກອນນິລະໄພໃຫ້ຄົບຖ້ວນ',
+        },
+        acknowledged: false,
+      });
+    }
   };
 
   return (
