@@ -134,10 +134,12 @@ export const SafeSightProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         document.documentElement.classList.add('light');
         document.documentElement.classList.remove('dark');
       }
-      soundEngine.isMuted = isAudioMuted;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isDarkTheme]);
+
+  useEffect(() => {
+    soundEngine.isMuted = isAudioMuted;
+  }, [isAudioMuted]);
 
   // 1. Initial Data Sync from NeonDB on Client Mount
   useEffect(() => {
