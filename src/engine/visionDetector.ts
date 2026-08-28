@@ -255,46 +255,18 @@ export class SafeSightVisionEngine {
       }
     }
 
-    // 2. Real-time Eye & Bridge Feature Analysis for Glasses/Eyewear Detection
-    let browHits = 0;
-    let browTotal = 0;
+    // 2. Real-time Eye, Bridge, & Temple Feature Analysis for Glasses/Eyewear Detection
     let bridgeHits = 0;
     let bridgeTotal = 0;
+    let templeHits = 0;
+    let templeTotal = 0;
     let cheekHits = 0;
     let cheekTotal = 0;
     let glintHits = 0;
 
-    // A. Eyebrow baseline band (y: 54-68, x: 100-220)
-    for (let y = 54; y < 68; y += 2) {
-      for (let x = 100; x < 220; x += 2) {
-        browTotal++;
-        const i = (y * 320 + x) * 4;
-        const iRight = (y * 320 + (x + 2)) * 4;
-        const iDown = ((y + 2) * 320 + x) * 4;
-        const r = frameData[i];
-        const g = frameData[i + 1];
-        const b = frameData[i + 2];
-        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        const rR = frameData[iRight] || r;
-        const gR = frameData[iRight + 1] || g;
-        const bR = frameData[iRight + 2] || b;
-        const lumaR = 0.299 * rR + 0.587 * gR + 0.114 * bR;
-
-        const rD = frameData[iDown] || r;
-        const gD = frameData[iDown + 1] || g;
-        const bD = frameData[iDown + 2] || b;
-        const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
-
-        if (Math.abs(luma - lumaR) + Math.abs(luma - lumaD) > 30) {
-          browHits++;
-        }
-      }
-    }
-
-    // B. Nose bridge strip (between eyes, y: 70-88, x: 142-178)
-    for (let y = 70; y < 88; y += 2) {
-      for (let x = 142; x < 178; x += 2) {
+    // A. Nose bridge strip (strictly across nasal root between inner eye corners, y: 72-86, x: 146-174)
+    for (let y = 72; y < 86; y += 2) {
+      for (let x = 146; x < 174; x += 2) {
         bridgeTotal++;
         const i = (y * 320 + x) * 4;
         const iDown = ((y + 2) * 320 + x) * 4;
@@ -308,15 +280,47 @@ export class SafeSightVisionEngine {
         const bD = frameData[iDown + 2] || b;
         const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
 
-        if (Math.abs(luma - lumaD) > 32 || (r < 75 && g < 75 && b < 75)) {
+        if (Math.abs(luma - lumaD) > 34 || (r < 70 && g < 70 && b < 70)) {
           bridgeHits++;
         }
       }
     }
 
-    // C. Lower cheek frame rim zone (under eye sockets, y: 88-108, x: 105-215)
-    for (let y = 88; y < 108; y += 2) {
-      for (let x = 105; x < 215; x += 2) {
+    // B. Outer temple arms (left temple x: 92-114, right temple x: 206-228, y: 70-86)
+    for (let y = 70; y < 86; y += 2) {
+      // Left Temple
+      for (let x = 92; x < 114; x += 2) {
+        templeTotal++;
+        const i = (y * 320 + x) * 4;
+        const iDown = ((y + 2) * 320 + x) * 4;
+        const r = frameData[i];
+        const g = frameData[i + 1];
+        const b = frameData[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const lumaD = 0.299 * (frameData[iDown] || r) + 0.587 * (frameData[iDown + 1] || g) + 0.114 * (frameData[iDown + 2] || b);
+        if (Math.abs(luma - lumaD) > 32 || (r < 75 && g < 75 && b < 75)) {
+          templeHits++;
+        }
+      }
+      // Right Temple
+      for (let x = 206; x < 228; x += 2) {
+        templeTotal++;
+        const i = (y * 320 + x) * 4;
+        const iDown = ((y + 2) * 320 + x) * 4;
+        const r = frameData[i];
+        const g = frameData[i + 1];
+        const b = frameData[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const lumaD = 0.299 * (frameData[iDown] || r) + 0.587 * (frameData[iDown + 1] || g) + 0.114 * (frameData[iDown + 2] || b);
+        if (Math.abs(luma - lumaD) > 32 || (r < 75 && g < 75 && b < 75)) {
+          templeHits++;
+        }
+      }
+    }
+
+    // C. Lower cheek frame rim zone (under eye sockets, y: 90-108, x: 110-210)
+    for (let y = 90; y < 108; y += 2) {
+      for (let x = 110; x < 210; x += 2) {
         cheekTotal++;
         const i = (y * 320 + x) * 4;
         const iDown = ((y + 2) * 320 + x) * 4;
@@ -330,7 +334,7 @@ export class SafeSightVisionEngine {
         const bD = frameData[iDown + 2] || b;
         const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
 
-        if (Math.abs(luma - lumaD) > 34) {
+        if (Math.abs(luma - lumaD) > 36) {
           cheekHits++;
         }
         if (r > 215 && g > 215 && b > 215) {
@@ -362,11 +366,13 @@ export class SafeSightVisionEngine {
     const hasVest = (fluorescentLimeVestPixels + fluorescentOrangeVestPixels) > 28;
 
     const bridgeDensity = bridgeTotal > 0 ? bridgeHits / bridgeTotal : 0;
+    const templeDensity = templeTotal > 0 ? templeHits / templeTotal : 0;
     const cheekDensity = cheekTotal > 0 ? cheekHits / cheekTotal : 0;
-    const browDensity = browTotal > 0 ? Math.max(0.08, browHits / browTotal) : 0.08;
 
-    const frameRatio = (cheekDensity + 1.2 * bridgeDensity) / browDensity;
-    const hasEyewear = frameRatio >= 0.45 || (bridgeDensity > 0.18 && cheekDensity > 0.06) || (cheekDensity > 0.15) || glintHits >= 4;
+    // Structural glasses verification: Bridge connection + rim/temple OR verified glints
+    const hasEyewear = (bridgeDensity > 0.14 && (cheekDensity > 0.08 || templeDensity > 0.10)) ||
+      (templeDensity > 0.14 && cheekDensity > 0.08) ||
+      (glintHits >= 3 && (bridgeDensity > 0.10 || templeDensity > 0.10));
 
     const objects: BoundingBoxObject[] = [];
     const ppeResults: PPEDetectionResult[] = [];
@@ -601,22 +607,24 @@ export class SafeSightVisionEngine {
     const headY0 = Math.max(0, py(person.y));
     const headY1 = Math.min(240, py(person.y + person.height * 0.28));
 
-    // 1. Eyebrow Baseline Band:
-    const browX0 = Math.max(0, px(person.x + person.width * 0.18));
-    const browX1 = Math.min(320, px(person.x + person.width * 0.82));
-    const browY0 = Math.max(0, py(person.y + person.height * 0.11));
-    const browY1 = Math.min(240, py(person.y + person.height * 0.16));
-
-    // 2. Nose Bridge Zone (between the two eyes):
+    // 2. Nose Bridge Zone (strictly across nasal root between inner eye corners):
     const personCenterX = person.x + person.width * 0.50;
-    const bridgeX0 = Math.max(0, px(personCenterX - person.width * 0.06));
-    const bridgeX1 = Math.min(320, px(personCenterX + person.width * 0.06));
+    const bridgeX0 = Math.max(0, px(personCenterX - person.width * 0.05));
+    const bridgeX1 = Math.min(320, px(personCenterX + person.width * 0.05));
     const bridgeY0 = Math.max(0, py(person.y + person.height * 0.16));
     const bridgeY1 = Math.min(240, py(person.y + person.height * 0.23));
 
-    // 3. Lower Cheek Rim Zone (under eye sockets, on upper cheeks):
-    const cheekX0 = Math.max(0, px(person.x + person.width * 0.20));
-    const cheekX1 = Math.min(320, px(person.x + person.width * 0.80));
+    // 3. Outer Temple Arms (outside left and right eye corners):
+    const leftTempleX0 = Math.max(0, px(person.x + person.width * 0.12));
+    const leftTempleX1 = Math.min(320, px(person.x + person.width * 0.22));
+    const rightTempleX0 = Math.max(0, px(person.x + person.width * 0.78));
+    const rightTempleX1 = Math.min(320, px(person.x + person.width * 0.88));
+    const templeY0 = Math.max(0, py(person.y + person.height * 0.16));
+    const templeY1 = Math.min(240, py(person.y + person.height * 0.23));
+
+    // 4. Lower Cheek Rim Zone (under eye sockets, on upper cheeks):
+    const cheekX0 = Math.max(0, px(person.x + person.width * 0.22));
+    const cheekX1 = Math.min(320, px(person.x + person.width * 0.78));
     const cheekY0 = Math.max(0, py(person.y + person.height * 0.23));
     const cheekY1 = Math.min(240, py(person.y + person.height * 0.29));
 
@@ -658,37 +666,7 @@ export class SafeSightVisionEngine {
       }
     }
 
-    // A. Eyebrow Baseline Sampling
-    let browHits = 0;
-    let browTotal = 0;
-    for (let y = browY0; y < browY1; y += 2) {
-      for (let x = browX0; x < browX1; x += 2) {
-        browTotal++;
-        const i = (y * 320 + x) * 4;
-        const iRight = (y * 320 + (x + 2)) * 4;
-        const iDown = ((y + 2) * 320 + x) * 4;
-        const r = frameData[i];
-        const g = frameData[i + 1];
-        const b = frameData[i + 2];
-        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        const rR = frameData[iRight] || r;
-        const gR = frameData[iRight + 1] || g;
-        const bR = frameData[iRight + 2] || b;
-        const lumaR = 0.299 * rR + 0.587 * gR + 0.114 * bR;
-
-        const rD = frameData[iDown] || r;
-        const gD = frameData[iDown + 1] || g;
-        const bD = frameData[iDown + 2] || b;
-        const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
-
-        if (Math.abs(luma - lumaR) + Math.abs(luma - lumaD) > 30) {
-          browHits++;
-        }
-      }
-    }
-
-    // B. Nose Bridge Horizontal Edge Bar Sampling (Glasses bridge)
+    // A. Nose Bridge Horizontal Edge Bar Sampling (Glasses bridge)
     let bridgeHits = 0;
     let bridgeTotal = 0;
     for (let y = bridgeY0; y < bridgeY1; y += 2) {
@@ -706,8 +684,42 @@ export class SafeSightVisionEngine {
         const bD = frameData[iDown + 2] || b;
         const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
 
-        if (Math.abs(luma - lumaD) > 32 || (r < 75 && g < 75 && b < 75)) {
+        if (Math.abs(luma - lumaD) > 34 || (r < 70 && g < 70 && b < 70)) {
           bridgeHits++;
+        }
+      }
+    }
+
+    // B. Outer Temple Arms Sampling
+    let templeHits = 0;
+    let templeTotal = 0;
+    for (let y = templeY0; y < templeY1; y += 2) {
+      // Left Temple
+      for (let x = leftTempleX0; x < leftTempleX1; x += 2) {
+        templeTotal++;
+        const i = (y * 320 + x) * 4;
+        const iDown = ((y + 2) * 320 + x) * 4;
+        const r = frameData[i];
+        const g = frameData[i + 1];
+        const b = frameData[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const lumaD = 0.299 * (frameData[iDown] || r) + 0.587 * (frameData[iDown + 1] || g) + 0.114 * (frameData[iDown + 2] || b);
+        if (Math.abs(luma - lumaD) > 32 || (r < 75 && g < 75 && b < 75)) {
+          templeHits++;
+        }
+      }
+      // Right Temple
+      for (let x = rightTempleX0; x < rightTempleX1; x += 2) {
+        templeTotal++;
+        const i = (y * 320 + x) * 4;
+        const iDown = ((y + 2) * 320 + x) * 4;
+        const r = frameData[i];
+        const g = frameData[i + 1];
+        const b = frameData[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const lumaD = 0.299 * (frameData[iDown] || r) + 0.587 * (frameData[iDown + 1] || g) + 0.114 * (frameData[iDown + 2] || b);
+        if (Math.abs(luma - lumaD) > 32 || (r < 75 && g < 75 && b < 75)) {
+          templeHits++;
         }
       }
     }
@@ -731,7 +743,7 @@ export class SafeSightVisionEngine {
         const bD = frameData[iDown + 2] || b;
         const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
 
-        if (Math.abs(luma - lumaD) > 34) {
+        if (Math.abs(luma - lumaD) > 36) {
           cheekHits++;
         }
         if (r > 215 && g > 215 && b > 215) {
@@ -759,11 +771,13 @@ export class SafeSightVisionEngine {
     const vestOk = torsoSampleTotal > 0 && (hiVisVestCount / torsoSampleTotal) > 0.18;
 
     const bridgeDensity = bridgeTotal > 0 ? bridgeHits / bridgeTotal : 0;
+    const templeDensity = templeTotal > 0 ? templeHits / templeTotal : 0;
     const cheekDensity = cheekTotal > 0 ? cheekHits / cheekTotal : 0;
-    const browDensity = browTotal > 0 ? Math.max(0.08, browHits / browTotal) : 0.08;
 
-    const frameRatio = (cheekDensity + 1.2 * bridgeDensity) / browDensity;
-    const eyewearOk = frameRatio >= 0.45 || (bridgeDensity > 0.18 && cheekDensity > 0.06) || (cheekDensity > 0.15) || glintHits >= 4;
+    // Structural glasses verification: Bridge connection + rim/temple OR verified glints
+    const eyewearOk = (bridgeDensity > 0.14 && (cheekDensity > 0.08 || templeDensity > 0.10)) ||
+      (templeDensity > 0.14 && cheekDensity > 0.08) ||
+      (glintHits >= 3 && (bridgeDensity > 0.10 || templeDensity > 0.10));
     const baseConf = Math.min(0.98, person.confidence * 0.96);
 
     // Dynamic Head/Helmet Bounding Box
