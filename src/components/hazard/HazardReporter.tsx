@@ -11,10 +11,12 @@ import {
   Volume2,
   CheckCircle2,
   Clock,
-  Sparkles } from 'lucide-react';
+  Sparkles,
+  RefreshCw } from 'lucide-react';
 import { soundEngine } from '../../core/speech';
 import { SupportedLanguage } from '../../core/types';
 import { updateHazardStatus as dbUpdateHazardStatus } from '@/actions/hazards';
+import { visionEngine, DetectionFrameState } from '../../engine/visionDetector';
 
 export const HazardReporter: React.FC = () => {
   const { t, language, hazardReports, addHazardReport, upvoteHazardReport, addPoints, isDbConnected } = useSafeSight();
@@ -32,6 +34,8 @@ export const HazardReporter: React.FC = () => {
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [aiScanResult, setAiScanResult] = useState<string | null>(null);
+  const [isScanningImage, setIsScanningImage] = useState<boolean>(false);
+  const [imageDetectionState, setImageDetectionState] = useState<DetectionFrameState | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -58,21 +62,66 @@ export const HazardReporter: React.FC = () => {
     }
   };
 
-  // Run AI Hazard Scanner on Uploaded Image
-  const handleScanUploadedImage = () => {
-    if (!uploadedImage) return;
+  // Run AI Hazard Scanner on Uploaded Image using YOLO
+  const handleScanUploadedImage = useCallback(async () => {
+    if (!uploadedImage || isScanningImage) return;
     soundEngine.playAlertBeep('warning');
-    setAiScanResult('Scanning image for PPE defects, fluid leaks, and machine guards...');
+    setAiScanResult('Loading image and running YOLO inference...');
+    setIsScanningImage(true);
+    setImageDetectionState(null);
 
-    setTimeout(() => {
-      soundEngine.playAlertBeep('success');
-      setAiScanResult('✓ AI Detected: Hydraulic fluid sheen & missing yellow warning cone (Confidence 94.8%).');
-      if (!reportTitle) {
-        setReportTitle('Hydraulic Oil Leak Sheen Detected by AI Vision');
-        setReportDesc('Machine base oil leak pooling on floor. Slip hazard detected with high confidence.');
+    try {
+      // Create an image element from the data URL
+      const img = new Image();
+      img.src = uploadedImage;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
+      });
+
+      // Run YOLO inference on the image
+      const state = await visionEngine.analyzeFrame(img, 'none', 0.35);
+      setImageDetectionState(state);
+
+      // Build result summary
+      const parts: string[] = [];
+      if (state.personCount > 0) {
+        parts.push(`${state.personCount} person${state.personCount !== 1 ? 's' : ''} detected`);
       }
-    }, 1500);
-  };
+      if (state.objects.length > 0) {
+        parts.push(`${state.objects.length} object${state.objects.length !== 1 ? 's' : ''} identified`);
+      }
+      if (state.hasViolation) {
+        parts.push(`VIOLATIONS: ${state.violationLabels.join(', ')}`);
+      } else {
+        parts.push('No PPE violations detected');
+      }
+
+      const confidence = state.objects.length > 0
+        ? ` (avg ${Math.round(state.objects.reduce((s, o) => s + o.confidence, 0) / state.objects.length * 100)}%)`
+        : '';
+
+      const resultText = parts.length > 0
+        ? `✓ AI Analysis: ${parts.join(' • ')}${confidence}`
+        : '✓ Image analyzed — no significant hazards detected by YOLO model.';
+
+      soundEngine.playAlertBeep('success');
+      setAiScanResult(resultText);
+
+      // Auto-fill form if there are violations
+      if (state.hasViolation && !reportTitle) {
+        const violationDesc = state.violationLabels.join(', ');
+        setReportTitle(`Hazard Detected: ${violationDesc}`);
+        setReportDesc(`AI Vision detected the following issues in the uploaded photo: ${violationDesc}. Compliance: ${state.compliancePercentage}%. ${state.personCount} worker(s) visible.`);
+      }
+    } catch (err: any) {
+      console.warn('[HazardReporter] Image scan error:', err);
+      soundEngine.playAlertBeep('warning');
+      setAiScanResult(`Scan completed with limited results. YOLO model may be loading. Error: ${err?.message || 'unknown'}`);
+    } finally {
+      setIsScanningImage(false);
+    }
+  }, [uploadedImage, isScanningImage, reportTitle, setReportTitle, setReportDesc]);
 
   // Voice Dictation using Web Speech API
   const handleToggleVoiceRecord = useCallback(() => {
@@ -305,24 +354,60 @@ export const HazardReporter: React.FC = () => {
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
                 <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-slate-800">
                   <img src={uploadedImage} alt="Uploaded Hazard" className="w-full h-full object-cover" />
+                  {/* Scanning overlay */}
+                  {isScanningImage && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70">
+                      <div className="flex flex-col items-center gap-2">
+                        <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
+                        <span className="text-[10px] font-mono text-cyan-300 animate-pulse font-bold">
+                          RUNNING YOLO INFERENCE...
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Detection results overlay */}
+                  {imageDetectionState && !isScanningImage && (
+                    <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 p-2 flex items-center gap-2 text-[10px] font-mono">
+                      <span className={`px-1.5 py-0.5 rounded ${imageDetectionState.hasViolation ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                        {imageDetectionState.hasViolation ? 'VIOLATIONS' : 'COMPLIANT'}
+                      </span>
+                      <span className="text-slate-400">
+                        {imageDetectionState.personCount} person{imageDetectionState.personCount !== 1 ? 's' : ''} &middot; {imageDetectionState.objects.length} objects &middot; {imageDetectionState.compliancePercentage}%
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={handleScanUploadedImage}
-                    className="flex-1 py-1.5 px-3 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                    disabled={isScanningImage}
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-xs font-bold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> AI Hazard Analysis
+                    {isScanningImage ? (
+                      <><RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin" /> Scanning...</>
+                    ) : (
+                      <><Sparkles className="w-3.5 h-3.5 text-cyan-400" /> AI Hazard Analysis</>
+                    )}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setUploadedImage(null)}
+                    onClick={() => { setUploadedImage(null); setAiScanResult(null); setImageDetectionState(null); }}
                     className="text-[11px] text-slate-400 hover:text-slate-200 underline"
                   >
                     Remove
                   </button>
                 </div>
                 {aiScanResult && <p className="text-[11px] text-emerald-300 font-mono">{aiScanResult}</p>}
+                {imageDetectionState && imageDetectionState.hasViolation && (
+                  <div className="flex flex-wrap gap-1">
+                    {imageDetectionState.violationLabels.map((label, i) => (
+                      <span key={i} className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 text-[9px] font-mono">
+                        ⚠️ {label}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
