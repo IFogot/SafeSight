@@ -1144,8 +1144,29 @@ export default {
               await logAuditToNeon(dbUrl, userId, 'LINE_SOS_KEYWORD', 'emergency', 'critical', `SOS keyword: ${userMsg}`);
               replyMessages = [buildEmergencySOSFlexMessage()];
 
-            } else if (matchKeywords(userMsg, ['PPE', 'ppe', 'หมวก', 'เสื้อ', 'แว่น', 'helmet', 'vest', 'goggles'])) {
-              replyMessages = [buildSafetyReadinessDetailFlexMessage()];
+            } else if (matchKeywords(userMsg, ['ส่งภาพตรวจ AI', 'ตรวจจับ AI', 'สแกน', 'scan', 'กล้อง', 'vision'])) {
+              replyMessages = [{
+                type: 'text',
+                text: '📷 ถ่ายรูปหรือส่งภาพถ่ายหน้างานในแชทนี้ได้เลยครับ\n\nระบบ AI Vision (YOLOv8) จะวิเคราะห์การสวมใส่หมวก เสื้อสะท้อนแสง แว่นตา และจุดเสี่ยงอันตรายให้อัตโนมัติทันทีครับ!',
+                quickReply: {
+                  items: [
+                    { type: 'action', action: { type: 'uri', label: '🌐 เปิดกล้อง AI สดบนเว็บ', uri: `${siteUrl}` } },
+                    { type: 'action', action: { type: 'message', label: '🦺 ดูสถานะ PPE', text: 'คะแนนความพร้อม' } },
+                  ],
+                },
+              }];
+
+            } else if (matchKeywords(userMsg, ['ปรึกษา Safety AI', 'ปรึกษา', 'จป', 'กฎหมาย', 'อาการ', 'advisor'])) {
+              replyMessages = [{
+                type: 'text',
+                text: '🛡️ SafeSight 24/7 AI Safety Officer พร้อมให้คำปรึกษาครับ\n\nคุณสามารถพิมพ์ถามได้เลย เช่น:\n• "อาการ Heat Stroke ทำอย่างไร"\n• "สารเคมีรั่วไหลต้องทำอย่างไร"\n• "กฎหมาย PPE สำหรับงานที่สูง"\n• หรือพิมพ์ SOS หากเกิดเหตุฉุกเฉิน',
+                quickReply: {
+                  items: [
+                    { type: 'action', action: { type: 'message', label: '⚡ รับภารกิจวันนี้', text: 'ขอภารกิจวันนี้' } },
+                    { type: 'action', action: { type: 'message', label: '🆘 SOS ฉุกเฉิน', text: 'SOS' } },
+                  ],
+                },
+              }];
 
             } else if (event.message.type === 'image') {
               // Image message -> Vision scan result card
