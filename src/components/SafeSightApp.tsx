@@ -48,7 +48,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#070B14] text-slate-100 selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen flex flex-col bg-[#FCFAF7] text-[#423D38] selection:bg-[#FE6E00] selection:text-white">
       {/* Top Navbar */}
       <Navbar />
 

@@ -1,89 +1,114 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --bg-main: #070B14;
-    --card-bg: rgba(13, 22, 38, 0.85);
-    --card-border: rgba(30, 58, 95, 0.5);
-    --accent-amber: #F59E0B;
-    --accent-cyan: #06B6D4;
-    --accent-emerald: #10B981;
-    --accent-rose: #EF4444;
-  }
+/*
+ * Evreghen Command Center design system (command-center-DESIGN.md)
+ * Warm off-white workspace + dark frosted application shell + orange accents.
+ *
+ * Tailwind v4 @theme remap: existing slate/amber/cyan/emerald/rose utilities
+ * resolve to the design-token palette below, flipping the product to the
+ * light warm workspace while keeping the utility class names untouched.
+ *
+ * Lightness roles (palette remap, not literal hues):
+ *   slate-100/200  -> primary copy #423D38      (was light text on dark panels)
+ *   slate-300/400  -> muted copy #5C554E/#797067
+ *   slate-700/800  -> outlines #E3E0DD/#EDEBE9  (was dark borders)
+ *   slate-900      -> elevated white surface    (was dark panel bg)
+ *   slate-950      -> warm near-black (video bezels only)
+ */
+@theme {
+  --color-slate-50: #faf9f7;
+  --color-slate-100: #423d38;
+  --color-slate-200: #4a443e;
+  --color-slate-300: #5c554e;
+  --color-slate-400: #797067;
+  --color-slate-500: #797067;
+  --color-slate-600: #6b6259;
+  --color-slate-700: #e3e0dd;
+  --color-slate-800: #edebe9;
+  --color-slate-900: #ffffff;
+  --color-slate-950: #12100e;
 
-  /* FIX INC-02: Light theme CSS variables */
-  .light {
-    --bg-main: #F1F5F9;
-    --card-bg: rgba(255, 255, 255, 0.95);
-    --card-border: rgba(203, 213, 225, 0.8);
-    --accent-amber: #D97706;
-    --accent-cyan: #0891B2;
-    --accent-emerald: #059669;
-    --accent-rose: #DC2626;
-  }
+  /* Primary orange family */
+  --color-amber-200: #ffe3c4;
+  --color-amber-300: #b44e00;
+  --color-amber-400: #e05e00;
+  --color-amber-500: #fe6e00;
+  --color-amber-600: #e05e00;
+  --color-amber-700: #c25500;
+  --color-amber-900: #7c3a00;
+  --color-amber-950: #431c00;
+
+  /* Info blue family */
+  --color-cyan-200: #cfe0ff;
+  --color-cyan-300: #1d4ed8;
+  --color-cyan-400: #2563eb;
+  --color-cyan-500: #3080ff;
+  --color-cyan-600: #1d4ed8;
+  --color-cyan-700: #1e40af;
+  --color-cyan-800: #1e3a8a;
+  --color-cyan-900: #172554;
+
+  /* Success green family */
+  --color-emerald-300: #047857;
+  --color-emerald-400: #00a050;
+  --color-emerald-500: #00c758;
+  --color-emerald-600: #00914a;
+  --color-emerald-700: #026a37;
+
+  /* Danger red family */
+  --color-rose-300: #c42a31;
+  --color-rose-400: #e1333b;
+  --color-rose-500: #fb2c36;
+  --color-rose-600: #d62029;
+  --color-rose-700: #b91c1c;
+}
+
+:root {
+  --bg-workspace: #fcfaf7;
+  --on-workspace: #423d38;
+  --muted: #797067;
+  --outline: #e3e0dd;
+  --primary: #fe6e00;
+  --primary-strong: #ff6b00;
+  --shell-base: rgba(0, 0, 0, 0.7);
+  --shell-border: rgba(255, 255, 255, 0.1);
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-raised: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 body {
-  font-family: 'Outfit', 'Prompt', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: var(--bg-main);
-  color: #F8FAFC;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Prompt', sans-serif;
+  background-color: var(--bg-workspace);
+  color: var(--on-workspace);
   overflow-x: hidden;
 }
 
-.light body,
-.light .glass-panel,
-.light .glass-panel-glow {
-  color: #0F172A;
-}
-
-.light body {
-  color: #0F172A;
-}
-
-/* Light mode overrides for common patterns */
-.light .bg-slate-900,
-.light .bg-slate-950 {
-  background-color: #F8FAFC !important;
-}
-
-.light .text-slate-100,
-.light .text-slate-200 {
-  color: #1E293B !important;
-}
-
-.light .text-slate-300 {
-  color: #334155 !important;
-}
-
-.light .text-slate-400 {
-  color: #64748B !important;
-}
-
-.light .border-slate-800,
-.light .border-slate-700 {
-  border-color: #CBD5E1 !important;
-}
-
-/* Glassmorphism Panels */
+/* Quiet analytical card — members of one neutral surface family */
 .glass-panel {
-  background: var(--card-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--card-border);
+  background: #ffffff;
+  border: 1px solid var(--outline);
+  box-shadow: var(--shadow-subtle);
 }
 
 .glass-panel-glow {
-  background: var(--card-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--card-border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  background: #ffffff;
+  border: 1px solid var(--outline);
+  box-shadow: var(--shadow-raised);
+}
+
+/* Dark frosted application shell (sidebar, top bar) */
+.shell-glass {
+  background: var(--shell-base);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--shell-border);
+  color: #ffffff;
 }
 
 /* Safety Scanlines */
 .scanline-overlay {
   background: linear-gradient(
-    rgba(18, 16, 16, 0) 50%, 
+    rgba(18, 16, 16, 0) 50%,
     rgba(0, 0, 0, 0.25) 50%
   ), linear-gradient(
     90deg,
@@ -114,33 +139,33 @@ body {
   animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* FIX INC-08: Emergency strobe animation (was missing) */
+/* Emergency strobe animation */
 @keyframes emergency-strobe {
-  0%, 100% { background-color: rgba(239, 68, 68, 0.15); }
-  50% { background-color: rgba(239, 68, 68, 0.5); }
+  0%, 100% { background-color: rgba(251, 44, 54, 0.15); }
+  50% { background-color: rgba(251, 44, 54, 0.5); }
 }
 
 .animate-emergency {
   animation: emergency-strobe 1s ease-in-out infinite;
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar — neutral */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(10, 16, 28, 0.6);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.3);
+  background: #d1d5dc;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 158, 11, 0.6);
+  background: var(--primary);
 }
 
 /* Typography styles for multilingual scripts */
@@ -161,5 +186,5 @@ body {
 }
 
 .font-mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }

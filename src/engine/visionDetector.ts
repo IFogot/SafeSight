@@ -89,6 +89,12 @@ export class SafeSightVisionEngine {
       if (typeof window !== 'undefined') {
         // Serve ORT WASM binaries from /public instead of the default CDN
         (ort.env.wasm as unknown as { wasmPaths: string }).wasmPaths = '/';
+        // Cross-origin isolation (COOP/COEP headers) unlocks multithreaded WASM
+        const isolated = (window as unknown as { crossOriginIsolated?: boolean }).crossOriginIsolated;
+        if (isolated) {
+          const cores = (navigator as unknown as { hardwareConcurrency?: number }).hardwareConcurrency || 4;
+          (ort.env.wasm as unknown as { numThreads: number }).numThreads = Math.min(4, cores);
+        }
       }
       this.loadPromise = ort.InferenceSession.create(this.config.modelUrl, {
         executionProviders: ['wasm'],
@@ -135,7 +141,9 @@ export class SafeSightVisionEngine {
       try {
         const input = this.toTensor(source);
         const inputName = session.inputNames[0];
+        const t0 = performance.now();
         const output = await session.run({ [inputName]: input });
+        const inferenceMs = Math.round(performance.now() - t0);
         const tensor = output[session.outputNames[0]] as ort.Tensor;
         const detections = this.decode(tensor, userConfidence, userIou);
 
@@ -167,8 +175,8 @@ export class SafeSightVisionEngine {
           modelStatus: 'ready' as const,
           modelMessage:
             detections.length > 0
-              ? `ONNX YOLOv8 WASM • ${objects.length} Detections`
-              : `ONNX YOLOv8 WASM • 0 detections (try lowering confidence below ${(userConfidence ?? this.config.confidenceThreshold ?? 0.35) * 100}%)`,
+              ? `ONNX YOLOv8 WASM • ${objects.length} Detections • ${inferenceMs}ms`
+              : `ONNX YOLOv8 WASM • 0 detections (${inferenceMs}ms) — lower confidence below ${(userConfidence ?? this.config.confidenceThreshold ?? 0.35) * 100}%`,
           engineMode: 'yolo_onnx' as const,
         };
       } catch (err) {

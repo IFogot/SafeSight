@@ -81,45 +81,66 @@ export const LiveVisionMonitor: React.FC = () => {
     };
   }, [activeMode, startWebcam, stopSource]);
 
-  // Real-time AI inference loop
+  // Real-time AI inference loop — heavy inference is throttled (~6 Hz) while
+  // the overlay redraws every animation frame from cached results (cheap)
   useEffect(() => {
     if (activeMode !== 'webcam' || sourceState !== 'active') return;
 
     let animId: number;
     let isRunning = true;
+    let lastState: DetectionFrameState | null = null;
+    let lastInferenceAt = 0;
+    let inFlight = false;
+    const INFERENCE_MIN_INTERVAL = 180;
 
     const runInference = async () => {
-      if (videoRef.current && overlayCanvasRef.current && videoRef.current.readyState >= 2) {
-        const state = await visionEngine.analyzeFrame(videoRef.current, activeScenario, confidenceThreshold);
-        setDetectionState(state);
+      const now = performance.now();
+      if (
+        !inFlight &&
+        videoRef.current &&
+        videoRef.current.readyState >= 2 &&
+        now - lastInferenceAt >= INFERENCE_MIN_INTERVAL
+      ) {
+        inFlight = true;
+        lastInferenceAt = now;
+        try {
+          const state = await visionEngine.analyzeFrame(videoRef.current, activeScenario, confidenceThreshold);
+          lastState = state;
+          setDetectionState(state);
 
-        if (state.hasViolation && Date.now() - lastDetectionAlertAt.current > 12000) {
-          lastDetectionAlertAt.current = Date.now();
-          const violation = state.violationLabels[0] || 'Safety violation detected';
-          addAlert({
-            title: `AI Vision Detected: ${violation}`,
-            zone: 'Zone B: Metal Stamping',
-            location: 'Workstation #04 (Camera 02)',
-            riskLevel: violation.includes('Slip') || violation.includes('Breach') ? 'critical' : 'high',
-            type: violation.includes('Slip') ? 'fall_detected' : 'ppe_violation',
-            details: {
-              th: `ระบบ AI Vision ตรวจพบความเสี่ยง: ${violation}`,
-              en: `AI Vision detected safety risk: ${violation}`,
-              my: `AI စနစ်က ဘေးကင်းရေးချိုးဖောက်မှု တွေ့ရှိသည်: ${violation}`,
-              km: `ប្រព័ន្ធ AI បានរកឃើញហានិភ័យ៖ ${violation}`,
-              lo: `ລະບົບ AI ກວດພົບຄວາມສ່ຽງ: ${violation}`,
-            },
-            audioText: {
-              th: `แจ้งเตือนความปลอดภัย ตรวจพบ ${violation}`,
-              en: `Safety warning. ${violation} detected in active zone.`,
-              my: `ဘေးကင်းရေးသတိပေးချက်။ ${violation} ကို တွေ့ရှိသည်။`,
-              km: `ការព្រមានសុវត្ថិភាព។ បានរកឃើញ ${violation}។`,
-              lo: `ແຈ້ງເຕືອນຄວາມປອດໄພ. ກວດພົບ ${violation}.`,
-            },
-            acknowledged: false,
-          });
+          if (state.hasViolation && Date.now() - lastDetectionAlertAt.current > 12000) {
+            lastDetectionAlertAt.current = Date.now();
+            const violation = state.violationLabels[0] || 'Safety violation detected';
+            addAlert({
+              title: `AI Vision Detected: ${violation}`,
+              zone: 'Zone B: Metal Stamping',
+              location: 'Workstation #04 (Camera 02)',
+              riskLevel: violation.includes('Slip') || violation.includes('Breach') ? 'critical' : 'high',
+              type: violation.includes('Slip') ? 'fall_detected' : 'ppe_violation',
+              details: {
+                th: `ระบบ AI Vision ตรวจพบความเสี่ยง: ${violation}`,
+                en: `AI Vision detected safety risk: ${violation}`,
+                my: `AI စနစ်က ဘေးကင်းရေးချိုးဖောက်မှု တွေ့ရှိသည်: ${violation}`,
+                km: `ប្រព័ន្ធ AI បានរកឃើញហានិភ័យ៖ ${violation}`,
+                lo: `ລະບົບ AI ກວດພົບຄວາມສ່ຽງ: ${violation}`,
+              },
+              audioText: {
+                th: `แจ้งเตือนความปลอดภัย ตรวจพบ ${violation}`,
+                en: `Safety warning. ${violation} detected in active zone.`,
+                my: `ဘေးကင်းရေးသတိပေးချက်။ ${violation} ကို တွေ့ရှိသည်။`,
+                km: `ការព្រមានសុវត្ថិភាព។ បានរកឃើញ ${violation}។`,
+                lo: `ແຈ້ງເຕືອນຄວາມປອດໄພ. ກວດພົບ ${violation}.`,
+              },
+              acknowledged: false,
+            });
+          }
+        } finally {
+          inFlight = false;
         }
+      }
 
+      // Redraw overlay from cached state every frame (boxes persist smoothly)
+      if (videoRef.current && overlayCanvasRef.current && lastState) {
         const target = videoRef.current;
         if (
           overlayCanvasRef.current.width !== target.clientWidth ||
@@ -128,8 +149,7 @@ export const LiveVisionMonitor: React.FC = () => {
           overlayCanvasRef.current.width = target.clientWidth || 640;
           overlayCanvasRef.current.height = target.clientHeight || 360;
         }
-
-        visionEngine.renderOverlay(overlayCanvasRef.current, state, true);
+        visionEngine.renderOverlay(overlayCanvasRef.current, lastState, true);
       }
 
       if (isRunning) animId = requestAnimationFrame(() => void runInference());
@@ -207,9 +227,9 @@ export const LiveVisionMonitor: React.FC = () => {
           <div className="flex items-center bg-slate-900/90 border border-slate-800 p-1 rounded-xl">
             <button
               onClick={() => setActiveMode('webcam')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 activeMode === 'webcam'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-bold'
+                  ? 'bg-[#FE6E00] text-white font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -218,9 +238,9 @@ export const LiveVisionMonitor: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveMode('cctv')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 activeMode === 'cctv'
-                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 font-bold'
+                  ? 'bg-[#FE6E00] text-white font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -253,34 +273,34 @@ export const LiveVisionMonitor: React.FC = () => {
               <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
 
               {sourceState === 'idle' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 text-center z-10">
-                  <Camera className="w-12 h-12 text-slate-600 mb-3" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#12100E]/95 text-[#B9B3AC] p-6 text-center z-10">
+                  <Camera className="w-12 h-12 text-white/30 mb-3" />
                   <p className="text-sm font-medium">Camera is inactive. Click below to start live inference.</p>
                 </div>
               )}
 
               {sourceState === 'requesting' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 text-center z-10">
-                  <RefreshCw className="w-10 h-10 text-cyan-400 animate-spin mb-3" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#12100E]/95 text-[#B9B3AC] p-6 text-center z-10">
+                  <RefreshCw className="w-10 h-10 text-[#FFB74D] animate-spin mb-3" />
                   <p className="text-sm font-medium">Starting camera or loading video...</p>
                 </div>
               )}
 
               {sourceState === 'denied' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 p-6 text-center z-10">
-                  <AlertTriangle className="w-12 h-12 text-rose-400 mb-3" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#12100E]/95 text-[#B9B3AC] p-6 text-center z-10">
+                  <AlertTriangle className="w-12 h-12 text-[#FB2C36] mb-3" />
                   <p className="text-sm font-medium mb-2">Camera access denied or unavailable.</p>
-                  <p className="text-xs text-slate-400 mb-4">Use a video file instead, or enable camera permissions and retry.</p>
+                  <p className="text-xs text-[#797067] mb-4">Use a video file instead, or enable camera permissions and retry.</p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold border border-cyan-500/40"
+                      className="px-3 py-1.5 rounded-md bg-[#FE6E00] text-white text-xs font-bold hover:bg-[#FF6B00]"
                     >
                       Upload Video File
                     </button>
                     <button
                       onClick={startWebcam}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-xs font-bold border border-slate-700"
+                      className="px-3 py-1.5 rounded-md bg-white/10 text-white text-xs font-bold border border-white/20 hover:bg-white/20"
                     >
                       Retry Camera
                     </button>
@@ -290,7 +310,7 @@ export const LiveVisionMonitor: React.FC = () => {
 
               {snapshotCaptured && (
                 <div className="absolute inset-0 bg-white/40 flex items-center justify-center z-20">
-                  <div className="px-4 py-2 rounded-xl bg-slate-950/90 text-amber-400 text-xs font-bold border border-amber-500/40 shadow-2xl animate-pulse">
+                  <div className="px-4 py-2 rounded-xl bg-[#12100E]/95 text-[#FFB74D] text-xs font-bold border border-white/10 shadow-2xl animate-pulse">
                     ✓ AI SNAPSHOT EVIDENCE ARCHIVED & DOWNLOADED
                   </div>
                 </div>
@@ -326,7 +346,7 @@ export const LiveVisionMonitor: React.FC = () => {
                 </button>
                 <button
                   onClick={handleCaptureSnapshot}
-                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 text-slate-950 text-xs font-bold transition-all flex items-center gap-1 shadow-md shadow-cyan-500/20"
+                  className="px-2.5 py-1 rounded-md bg-[#FE6E00] hover:bg-[#FF6B00] text-white text-xs font-bold transition-all flex items-center gap-1"
                 >
                   <Download className="w-3.5 h-3.5" /> Snapshot Evidence
                 </button>
@@ -565,7 +585,7 @@ const CCTVMatrix: React.FC = () => {
       {channels.map((chan) => {
         const state = channelStates[chan.id];
         return (
-          <div key={chan.id} className="glass-panel p-4 rounded-2xl border border-slate-800 relative bg-slate-950 space-y-3">
+          <div key={chan.id} className="glass-panel p-4 rounded-xl relative space-y-3">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span
@@ -596,15 +616,15 @@ const CCTVMatrix: React.FC = () => {
                 onError={() => setChannelSource(chan.id, { state: 'error', config: state?.config })}
               />
               {state?.state !== 'active' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 text-slate-400 text-center p-4 space-y-3">
-                  <MonitorPlay className="w-10 h-10 text-slate-600" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#12100E]/95 text-[#B9B3AC] text-center p-4 space-y-3">
+                  <MonitorPlay className="w-10 h-10 text-white/30" />
                   <div>
                     <p className="text-xs mb-1">No live source connected.</p>
-                    <p className="text-[10px] text-slate-500">Upload a video file or paste a stream URL.</p>
+                    <p className="text-[10px] text-[#797067]">Upload a video file or paste a stream URL.</p>
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-center gap-2 w-full max-w-xs">
-                    <label className="cursor-pointer px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold border border-cyan-500/40 hover:bg-cyan-500/30 transition-colors">
+                    <label className="cursor-pointer px-3 py-1.5 rounded-md bg-[#FE6E00] text-white text-xs font-bold hover:bg-[#FF6B00] transition-colors">
                       <input
                         type="file"
                         accept="video/*"
@@ -622,14 +642,14 @@ const CCTVMatrix: React.FC = () => {
                         value={urlInputs[chan.id] || ''}
                         onChange={(e) => setUrlInputs((prev) => ({ ...prev, [chan.id]: e.target.value }))}
                         placeholder="Stream URL"
-                        className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
+                        className="flex-1 min-w-0 bg-white/10 border border-white/20 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-[#F97015]"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') startChannelUrl(chan.id, urlInputs[chan.id] || '');
                         }}
                       />
                       <button
                         onClick={() => startChannelUrl(chan.id, urlInputs[chan.id] || '')}
-                        className="px-2 py-1.5 rounded-lg bg-slate-800 text-cyan-300 text-xs font-bold border border-slate-700 hover:bg-slate-700"
+                        className="px-2 py-1.5 rounded-md bg-white/10 text-white text-xs font-bold border border-white/20 hover:bg-white/20"
                       >
                         Go
                       </button>

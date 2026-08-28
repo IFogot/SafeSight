@@ -11,7 +11,6 @@ import {
   BellRing,
   Smartphone,
   FileCheck2,
-  Zap,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -25,77 +24,77 @@ export const Sidebar: React.FC = () => {
       label: t.nav.liveVision,
       icon: Camera,
       badge: 'LIVE',
-      badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+      badgeColor: 'bg-[#00C758]/20 text-[#00C758]',
     },
     {
       id: 'digitalTwin',
       label: t.nav.digitalTwin,
       icon: Layers,
       badge: '2.5D',
-      badgeColor: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40',
+      badgeColor: 'bg-white/10 text-white/70',
     },
     {
       id: 'eecMap',
       label: t.nav.eecRegional,
       icon: MapPin,
       badge: 'EEC',
-      badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
+      badgeColor: 'bg-[#FE6E00]/20 text-[#FFB74D]',
     },
     {
       id: 'hazard',
       label: t.nav.hazardReporter,
       icon: AlertTriangle,
       badge: unackAlerts > 0 ? `${unackAlerts}` : undefined,
-      badgeColor: 'bg-rose-500/20 text-rose-400 border-rose-500/40',
+      badgeColor: 'bg-[#FB2C36] text-white',
     },
     {
       id: 'predictive',
       label: t.nav.predictiveAi,
       icon: TrendingUp,
       badge: 'ML -37%',
-      badgeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/40',
+      badgeColor: 'bg-white/10 text-white/70',
     },
     {
       id: 'iot',
       label: t.nav.iotSensors,
       icon: Activity,
       badge: 'IoT',
-      badgeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
+      badgeColor: 'bg-white/10 text-white/70',
     },
     {
       id: 'academy',
       label: t.nav.workerAcademy,
       icon: GraduationCap,
       badge: `${userPoints} XP`,
-      badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
+      badgeColor: 'bg-[#FE6E00]/20 text-[#FFB74D]',
     },
     {
       id: 'emergency',
       label: t.nav.emergencyHub,
       icon: BellRing,
       badge: evacuation.isActive ? 'ALARM' : undefined,
-      badgeColor: 'bg-rose-600 text-white animate-pulse',
+      badgeColor: 'bg-[#FB2C36] text-white animate-pulse',
     },
     {
       id: 'mobile',
       label: t.nav.workerMobile,
       icon: Smartphone,
       badge: 'Mobile',
-      badgeColor: 'bg-slate-700 text-slate-300',
+      badgeColor: 'bg-white/10 text-white/70',
     },
     {
       id: 'audit',
       label: t.nav.auditLog,
       icon: FileCheck2,
       badge: 'ISO',
-      badgeColor: 'bg-slate-700 text-slate-300',
+      badgeColor: 'bg-white/10 text-white/70',
     },
   ];
 
   return (
-    <aside className="w-full md:w-64 shrink-0 glass-panel border-r border-slate-800/80 p-3 flex flex-col justify-between">
-      <div className="space-y-1">
-        <div className="px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+    <aside className="shell-glass w-full md:w-64 shrink-0 rounded-xl p-3 flex flex-col justify-between">
+      <div className="space-y-0.5">
+        <div className="px-3 py-2 text-[11px] uppercase tracking-[0.05em] text-white/50 font-semibold">
           {t.appName}
         </div>
 
@@ -107,24 +106,22 @@ export const Sidebar: React.FC = () => {
             <button
               key={item.id}
               onClick={() => setActiveNavTab(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                 isActive
-                  ? 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-cyan-500/10 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/10'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-slate-100 border border-transparent'
+                  ? 'bg-[#FE6E00] text-white'
+                  : 'text-white/70 hover:bg-white/10 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5 truncate">
-                <Icon
-                  className={`w-4 h-4 shrink-0 ${
-                    isActive ? 'text-amber-400' : 'text-slate-400'
-                  }`}
-                />
+                <Icon className="w-4 h-4 shrink-0" />
                 <span className="truncate">{item.label}</span>
               </div>
 
               {item.badge && (
                 <span
-                  className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded-md border ${item.badgeColor}`}
+                  className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${
+                    isActive ? 'bg-white/20 text-white' : item.badgeColor
+                  }`}
                 >
                   {item.badge}
                 </span>
@@ -135,19 +132,19 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Bottom Safety Status Card */}
-      <div className="mt-4 p-3 rounded-xl bg-slate-900/90 border border-slate-800/80 space-y-2">
+      <div className="mt-4 p-3 rounded-lg bg-white/10 space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-400 font-medium">EEC Safety Index</span>
-          <span className="font-mono font-bold text-emerald-400 flex items-center gap-1">
-            <Zap className="w-3 h-3" /> 94.2%
+          <span className="text-white/60 font-medium">EEC Safety Index</span>
+          <span className="font-mono font-bold text-[#00C758] flex items-center gap-1">
+            94.2%
           </span>
         </div>
-        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full w-[94.2%]" />
+        <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+          <div className="bg-[#FE6E00] h-full w-[94.2%]" />
         </div>
-        <div className="text-[10px] text-slate-400 font-mono flex justify-between">
+        <div className="text-[10px] text-white/50 font-mono flex justify-between">
           <span>Target: Zero Accident</span>
-          <span className="text-amber-400">-37% YTD</span>
+          <span className="text-[#FFB74D]">-37% YTD</span>
         </div>
       </div>
     </aside>

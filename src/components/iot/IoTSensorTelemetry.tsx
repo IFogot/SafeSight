@@ -135,7 +135,7 @@ export const IoTSensorTelemetry: React.FC = () => {
       </div>
 
       {/* Interactive Spike Simulator Bar for Professors */}
-      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/60">
+      <div className="glass-panel p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
             <Sparkles className="w-4 h-4" /> Telemetry Anomaly Injector:
@@ -211,15 +211,17 @@ export const IoTSensorTelemetry: React.FC = () => {
                   <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
-              <XAxis dataKey="time" stroke="#64748B" fontSize={10} fontFamily="JetBrains Mono" />
-              <YAxis stroke="#64748B" fontSize={10} fontFamily="JetBrains Mono" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#E3E0DD" />
+              <XAxis dataKey="time" stroke="#797067" fontSize={10} />
+              <YAxis stroke="#797067" fontSize={10} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#0F172A',
-                  borderColor: '#334155',
-                  borderRadius: '12px',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E3E0DD',
+                  borderRadius: '8px',
                   fontSize: '11px',
+                  color: '#423D38',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
                 }}
               />
               <Area

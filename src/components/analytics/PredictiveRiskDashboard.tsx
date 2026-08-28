@@ -154,15 +154,17 @@ export const PredictiveRiskDashboard: React.FC = () => {
                     <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
-                <XAxis dataKey="month" stroke="#64748B" fontSize={11} fontFamily="JetBrains Mono" />
-                <YAxis stroke="#64748B" fontSize={11} fontFamily="JetBrains Mono" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E3E0DD" />
+                <XAxis dataKey="month" stroke="#797067" fontSize={11} />
+                <YAxis stroke="#797067" fontSize={11} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#0F172A',
-                    borderColor: '#334155',
-                    borderRadius: '12px',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E3E0DD',
+                    borderRadius: '8px',
                     fontSize: '12px',
+                    color: '#423D38',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
