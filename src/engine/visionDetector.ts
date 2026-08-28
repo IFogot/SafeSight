@@ -601,38 +601,74 @@ export class SafeSightVisionEngine {
     const px = (pctX: number) => Math.round((pctX / 100) * 320);
     const py = (pctY: number) => Math.round((pctY / 100) * 240);
 
-    // Head region: top 28% of the person box
+    // Dynamically calculate anthropometric landmark offsets based on body crop aspect ratio
+    const ar = person.height / Math.max(1, person.width);
+
+    let headTopPct: number;
+    let headHeightPct: number;
+    let eyeCenterPct: number;
+    let eyeHeightPct: number;
+    let vestTopPct: number;
+    let vestHeightPct: number;
+
+    if (ar >= 2.0) {
+      // Full Body standing view
+      headTopPct = 0.00;
+      headHeightPct = 0.20;
+      eyeCenterPct = 0.12;
+      eyeHeightPct = 0.08;
+      vestTopPct = 0.22;
+      vestHeightPct = 0.45;
+    } else if (ar >= 1.35) {
+      // Upper Body (Waist up)
+      headTopPct = 0.00;
+      headHeightPct = 0.26;
+      eyeCenterPct = 0.18;
+      eyeHeightPct = 0.10;
+      vestTopPct = 0.32;
+      vestHeightPct = 0.50;
+    } else {
+      // Close-up Portrait / Head & Shoulders webcam view
+      headTopPct = 0.00;
+      headHeightPct = 0.28;
+      eyeCenterPct = 0.34;
+      eyeHeightPct = 0.14;
+      vestTopPct = 0.58;
+      vestHeightPct = 0.40;
+    }
+
+    // 1. Head / Helmet sampling zone:
     const headX0 = Math.max(0, px(person.x + person.width * 0.15));
     const headX1 = Math.min(320, px(person.x + person.width * 0.85));
-    const headY0 = Math.max(0, py(person.y));
-    const headY1 = Math.min(240, py(person.y + person.height * 0.28));
+    const headY0 = Math.max(0, py(person.y + person.height * headTopPct));
+    const headY1 = Math.min(240, py(person.y + person.height * headHeightPct));
 
     // 2. Nose Bridge Zone (strictly across nasal root between inner eye corners):
     const personCenterX = person.x + person.width * 0.50;
     const bridgeX0 = Math.max(0, px(personCenterX - person.width * 0.05));
     const bridgeX1 = Math.min(320, px(personCenterX + person.width * 0.05));
-    const bridgeY0 = Math.max(0, py(person.y + person.height * 0.16));
-    const bridgeY1 = Math.min(240, py(person.y + person.height * 0.23));
+    const bridgeY0 = Math.max(0, py(person.y + person.height * (eyeCenterPct - 0.035)));
+    const bridgeY1 = Math.min(240, py(person.y + person.height * (eyeCenterPct + 0.035)));
 
     // 3. Outer Temple Arms (outside left and right eye corners):
     const leftTempleX0 = Math.max(0, px(person.x + person.width * 0.12));
     const leftTempleX1 = Math.min(320, px(person.x + person.width * 0.22));
     const rightTempleX0 = Math.max(0, px(person.x + person.width * 0.78));
     const rightTempleX1 = Math.min(320, px(person.x + person.width * 0.88));
-    const templeY0 = Math.max(0, py(person.y + person.height * 0.16));
-    const templeY1 = Math.min(240, py(person.y + person.height * 0.23));
+    const templeY0 = Math.max(0, py(person.y + person.height * (eyeCenterPct - 0.035)));
+    const templeY1 = Math.min(240, py(person.y + person.height * (eyeCenterPct + 0.035)));
 
     // 4. Lower Cheek Rim Zone (under eye sockets, on upper cheeks):
     const cheekX0 = Math.max(0, px(person.x + person.width * 0.22));
     const cheekX1 = Math.min(320, px(person.x + person.width * 0.78));
-    const cheekY0 = Math.max(0, py(person.y + person.height * 0.23));
-    const cheekY1 = Math.min(240, py(person.y + person.height * 0.29));
+    const cheekY0 = Math.max(0, py(person.y + person.height * (eyeCenterPct + 0.04)));
+    const cheekY1 = Math.min(240, py(person.y + person.height * (eyeCenterPct + 0.09)));
 
-    // Torso region: 30%–75% down the person box
+    // 5. Torso region:
     const torsoX0 = Math.max(0, px(person.x + person.width * 0.1));
     const torsoX1 = Math.min(320, px(person.x + person.width * 0.9));
-    const torsoY0 = Math.max(0, py(person.y + person.height * 0.32));
-    const torsoY1 = Math.min(240, py(person.y + person.height * 0.75));
+    const torsoY0 = Math.max(0, py(person.y + person.height * vestTopPct));
+    const torsoY1 = Math.min(240, py(person.y + person.height * Math.min(1.0, vestTopPct + vestHeightPct)));
 
     let frameData: Uint8ClampedArray;
     try {
@@ -780,7 +816,7 @@ export class SafeSightVisionEngine {
       (glintHits >= 3 && (bridgeDensity > 0.10 || templeDensity > 0.10));
     const baseConf = Math.min(0.98, person.confidence * 0.96);
 
-    // Dynamic Head/Helmet Bounding Box
+    // Dynamic Head/Helmet Bounding Box (Aspect-ratio responsive)
     results.push({
       id: `${person.id}-helmet`,
       class: helmetOk ? 'helmet' : 'no_helmet',
@@ -788,27 +824,27 @@ export class SafeSightVisionEngine {
       confidence: baseConf,
       color: helmetOk ? '#10B981' : '#EF4444',
       x: person.x + person.width * 0.2,
-      y: person.y,
+      y: person.y + person.height * headTopPct,
       width: person.width * 0.6,
-      height: person.height * 0.24,
+      height: person.height * headHeightPct,
       isViolation: !helmetOk,
     });
 
-    // Dynamic Eyewear Bounding Box (State-responsive)
+    // Dynamic Eyewear Bounding Box (Aspect-ratio responsive)
     results.push({
       id: `${person.id}-glasses`,
       class: eyewearOk ? 'glasses' : 'no_glasses',
       label: eyewearOk ? 'Safety Glasses / Eyewear (ANSI Z87.1)' : 'MISSING EYE PROTECTION (VIOLATION)',
       confidence: baseConf * 0.94,
       color: eyewearOk ? '#10B981' : '#EF4444',
-      x: person.x + person.width * 0.22,
-      y: person.y + person.height * 0.14,
-      width: person.width * 0.56,
-      height: person.height * 0.13,
+      x: person.x + person.width * 0.20,
+      y: person.y + person.height * (eyeCenterPct - eyeHeightPct * 0.5),
+      width: person.width * 0.60,
+      height: person.height * eyeHeightPct,
       isViolation: !eyewearOk,
     });
 
-    // Dynamic Torso/Vest Bounding Box
+    // Dynamic Torso/Vest Bounding Box (Aspect-ratio responsive)
     results.push({
       id: `${person.id}-vest`,
       class: vestOk ? 'vest' : 'no_vest',
@@ -816,9 +852,9 @@ export class SafeSightVisionEngine {
       confidence: baseConf,
       color: vestOk ? '#10B981' : '#EF4444',
       x: person.x + person.width * 0.1,
-      y: person.y + person.height * 0.3,
+      y: person.y + person.height * vestTopPct,
       width: person.width * 0.8,
-      height: person.height * 0.45,
+      height: person.height * vestHeightPct,
       isViolation: !vestOk,
     });
 
