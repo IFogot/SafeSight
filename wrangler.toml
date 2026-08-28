@@ -1,11 +1,21 @@
 name = "safesight-line-webhook"
 main = "line-webhook-worker.js"
 compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
 
+# ── Environment Variables (non-secret) ──
 [vars]
 SITE_URL = "https://safesight-arise.vercel.app"
 
-# Note: Add the following secrets in Cloudflare Workers Dashboard or via CLI:
+# ── Secrets (set via CLI or dashboard) ──
 # wrangler secret put LINE_CHANNEL_SECRET
 # wrangler secret put LINE_CHANNEL_ACCESS_TOKEN
 # wrangler secret put DATABASE_URL
+
+# ── Production Environment ──
+[env.production]
+vars = { SITE_URL = "https://safesight-arise.vercel.app" }
+
+# ── Staging Environment ──
+[env.staging]
+vars = { SITE_URL = "https://safesight-staging.vercel.app" }

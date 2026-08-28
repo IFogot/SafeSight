@@ -38,12 +38,13 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
     setIsScanning(true);
     setScanComplete(false);
 
-    const result = await visionEngine.analyzeFrame(imageRef.current);
+    const img = imageRef.current;
+    const result = await visionEngine.analyzeFrame(img);
 
-    // Draw overlay boxes on the preview canvas
+    // Draw overlay boxes on the preview canvas with 1:1 matching dimensions
     const canvas = canvasRef.current;
-    canvas.width = imageRef.current.naturalWidth || imageRef.current.clientWidth;
-    canvas.height = imageRef.current.naturalHeight || imageRef.current.clientHeight;
+    canvas.width = img.clientWidth || img.naturalWidth || 640;
+    canvas.height = img.clientHeight || img.naturalHeight || 480;
     visionEngine.renderOverlay(canvas, result, true);
 
     setIsScanning(false);
@@ -51,6 +52,7 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
     const violations = result.violationLabels;
     setDetectedViolations(violations);
     setScanMessage(result.modelMessage || `${result.objects.length} objects detected.`);
+
 
     if (violations.length > 0) {
       addAlert({
