@@ -403,7 +403,7 @@ export const LiveVisionMonitor: React.FC = () => {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                {(['no_helmet', 'no_vest', 'zone_breach', 'slip_fall'] as SimulatedScenario[]).map((scenario) => (
+                {(['no_helmet', 'no_vest', 'no_glasses', 'zone_breach', 'slip_fall'] as SimulatedScenario[]).map((scenario) => (
                   <button
                     key={scenario}
                     onClick={() => handleTriggerScenario(scenario)}
@@ -415,6 +415,7 @@ export const LiveVisionMonitor: React.FC = () => {
                   >
                     {scenario === 'no_helmet' && '⚠️ No Helmet'}
                     {scenario === 'no_vest' && '⚠️ No Vest'}
+                    {scenario === 'no_glasses' && '👓 No Glasses'}
                     {scenario === 'zone_breach' && '🚨 Zone Breach'}
                     {scenario === 'slip_fall' && '🚑 Slip & Fall'}
                   </button>

@@ -22,7 +22,7 @@ export interface VisionModelConfig {
   iouThreshold?: number;
 }
 
-export type SimulatedScenario = 'none' | 'no_helmet' | 'no_vest' | 'zone_breach' | 'slip_fall';
+export type SimulatedScenario = 'none' | 'no_helmet' | 'no_vest' | 'no_glasses' | 'zone_breach' | 'slip_fall';
 
 type Source = HTMLVideoElement | HTMLCanvasElement | HTMLImageElement | ImageBitmap;
 
@@ -256,47 +256,55 @@ export class SafeSightVisionEngine {
     }
 
     // 2. Real-time Eye & Bridge Feature Analysis for Glasses/Eyewear Detection
-    let eyeGradientHits = 0;
-    let specularGlintHits = 0;
-    let darkFrameHits = 0;
-    let eyeSamplesTotal = 0;
+    let bridgeHits = 0;
+    let bridgeTotal = 0;
+    let cheekHits = 0;
+    let cheekTotal = 0;
+    let glintHits = 0;
 
-    for (let y = 62; y < 108; y += 3) {
-      for (let x = 100; x < 220; x += 3) {
-        eyeSamplesTotal++;
+    // A. Nose bridge strip (strictly between eyes, y: 70-85, x: 145-175)
+    for (let y = 70; y < 85; y += 2) {
+      for (let x = 145; x < 175; x += 2) {
+        bridgeTotal++;
         const i = (y * 320 + x) * 4;
-        const iRight = (y * 320 + (x + 2)) * 4;
         const iDown = ((y + 2) * 320 + x) * 4;
-
         const r = frameData[i];
         const g = frameData[i + 1];
         const b = frameData[i + 2];
         const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        const rR = frameData[iRight] || r;
-        const gR = frameData[iRight + 1] || g;
-        const bR = frameData[iRight + 2] || b;
-        const lumaR = 0.299 * rR + 0.587 * gR + 0.114 * bR;
 
         const rD = frameData[iDown] || r;
         const gD = frameData[iDown + 1] || g;
         const bD = frameData[iDown + 2] || b;
         const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
 
-        // Frame edge contrast difference (horizontal and vertical Sobel gradient)
-        const grad = Math.abs(luma - lumaR) + Math.abs(luma - lumaD);
-        if (grad > 36) {
-          eyeGradientHits++;
+        if (Math.abs(luma - lumaD) > 40 || (r < 65 && g < 65 && b < 65)) {
+          bridgeHits++;
         }
+      }
+    }
 
-        // Lens specular reflection glint (sharp localized bright spot)
-        if (r > 200 && g > 200 && b > 200) {
-          specularGlintHits++;
+    // B. Lower cheek frame rim zone (under eye sockets, y: 88-106, x: 110-210)
+    for (let y = 88; y < 106; y += 2) {
+      for (let x = 110; x < 210; x += 2) {
+        cheekTotal++;
+        const i = (y * 320 + x) * 4;
+        const iDown = ((y + 2) * 320 + x) * 4;
+        const r = frameData[i];
+        const g = frameData[i + 1];
+        const b = frameData[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        const rD = frameData[iDown] || r;
+        const gD = frameData[iDown + 1] || g;
+        const bD = frameData[iDown + 2] || b;
+        const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
+
+        if (Math.abs(luma - lumaD) > 42) {
+          cheekHits++;
         }
-
-        // Dark rim frame vs skin tone
-        if (r < 65 && g < 65 && b < 65) {
-          darkFrameHits++;
+        if (r > 215 && g > 215 && b > 215) {
+          glintHits++;
         }
       }
     }
@@ -323,10 +331,9 @@ export class SafeSightVisionEngine {
     const hasHelmet = (yellowHardHatPixels + orangeHardHatPixels + blueHardHatPixels) > 18 && darkHairPixels < (yellowHardHatPixels + orangeHardHatPixels + blueHardHatPixels) * 1.5;
     const hasVest = (fluorescentLimeVestPixels + fluorescentOrangeVestPixels) > 28;
 
-    // Eyewear determination: edge gradient ratio, dark rim ratio, or lens glints
-    const edgeRatio = eyeSamplesTotal > 0 ? eyeGradientHits / eyeSamplesTotal : 0;
-    const darkFrameRatio = eyeSamplesTotal > 0 ? darkFrameHits / eyeSamplesTotal : 0;
-    const hasEyewear = edgeRatio > 0.08 || darkFrameRatio > 0.05 || specularGlintHits >= 3;
+    const bridgeRatio = bridgeTotal > 0 ? bridgeHits / bridgeTotal : 0;
+    const cheekRatio = cheekTotal > 0 ? cheekHits / cheekTotal : 0;
+    const hasEyewear = (bridgeRatio > 0.22 && cheekRatio > 0.14) || (cheekRatio > 0.24) || (glintHits >= 5 && bridgeRatio > 0.14);
 
     const objects: BoundingBoxObject[] = [];
     const ppeResults: PPEDetectionResult[] = [];
@@ -561,11 +568,24 @@ export class SafeSightVisionEngine {
     const headY0 = Math.max(0, py(person.y));
     const headY1 = Math.min(240, py(person.y + person.height * 0.28));
 
-    // Eye region: 12% to 26% down person height
-    const eyeX0 = Math.max(0, px(person.x + person.width * 0.22));
-    const eyeX1 = Math.min(320, px(person.x + person.width * 0.78));
-    const eyeY0 = Math.max(0, py(person.y + person.height * 0.12));
-    const eyeY1 = Math.min(240, py(person.y + person.height * 0.26));
+    // 2. Nose Bridge Zone (strictly between the two eyes, below eyebrows):
+    const personCenterX = person.x + person.width * 0.50;
+    const bridgeX0 = Math.max(0, px(personCenterX - person.width * 0.05));
+    const bridgeX1 = Math.min(320, px(personCenterX + person.width * 0.05));
+    const bridgeY0 = Math.max(0, py(person.y + person.height * 0.16));
+    const bridgeY1 = Math.min(240, py(person.y + person.height * 0.23));
+
+    // 3. Lower Cheek Rim Zone (under the eye sockets, on upper cheeks):
+    const cheekX0 = Math.max(0, px(person.x + person.width * 0.22));
+    const cheekX1 = Math.min(320, px(person.x + person.width * 0.78));
+    const cheekY0 = Math.max(0, py(person.y + person.height * 0.23));
+    const cheekY1 = Math.min(240, py(person.y + person.height * 0.29));
+
+    // 4. Lens Glint Highlights Zone (over ocular globes):
+    const glintX0 = Math.max(0, px(person.x + person.width * 0.24));
+    const glintX1 = Math.min(320, px(person.x + person.width * 0.76));
+    const glintY0 = Math.max(0, py(person.y + person.height * 0.16));
+    const glintY1 = Math.min(240, py(person.y + person.height * 0.26));
 
     // Torso region: 30%–75% down the person box
     const torsoX0 = Math.max(0, px(person.x + person.width * 0.1));
@@ -605,38 +625,65 @@ export class SafeSightVisionEngine {
       }
     }
 
-    // Eye Region Glasses Gradient & Glint Sampling
-    let eyeGradientHits = 0;
-    let specularGlintHits = 0;
-    let darkFrameHits = 0;
-    let eyeSampleTotal = 0;
-
-    for (let y = eyeY0; y < eyeY1; y += 2) {
-      for (let x = eyeX0; x < eyeX1; x += 2) {
-        eyeSampleTotal++;
+    // Nose Bridge Horizontal Edge Bar Sampling (Glasses bridge)
+    let bridgeHits = 0;
+    let bridgeTotal = 0;
+    for (let y = bridgeY0; y < bridgeY1; y += 2) {
+      for (let x = bridgeX0; x < bridgeX1; x += 2) {
+        bridgeTotal++;
         const i = (y * 320 + x) * 4;
-        const iRight = (y * 320 + (x + 2)) * 4;
         const iDown = ((y + 2) * 320 + x) * 4;
-
         const r = frameData[i];
         const g = frameData[i + 1];
         const b = frameData[i + 2];
         const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        const rR = frameData[iRight] || r;
-        const gR = frameData[iRight + 1] || g;
-        const bR = frameData[iRight + 2] || b;
-        const lumaR = 0.299 * rR + 0.587 * gR + 0.114 * bR;
 
         const rD = frameData[iDown] || r;
         const gD = frameData[iDown + 1] || g;
         const bD = frameData[iDown + 2] || b;
         const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
 
-        const grad = Math.abs(luma - lumaR) + Math.abs(luma - lumaD);
-        if (grad > 36) eyeGradientHits++;
-        if (r > 200 && g > 200 && b > 200) specularGlintHits++;
-        if (r < 65 && g < 65 && b < 65) darkFrameHits++;
+        if (Math.abs(luma - lumaD) > 40 || (r < 65 && g < 65 && b < 65)) {
+          bridgeHits++;
+        }
+      }
+    }
+
+    // Lower Cheek Frame Rim Sampling (Below eye orbits)
+    let cheekHits = 0;
+    let cheekTotal = 0;
+    for (let y = cheekY0; y < cheekY1; y += 2) {
+      for (let x = cheekX0; x < cheekX1; x += 2) {
+        cheekTotal++;
+        const i = (y * 320 + x) * 4;
+        const iDown = ((y + 2) * 320 + x) * 4;
+        const r = frameData[i];
+        const g = frameData[i + 1];
+        const b = frameData[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        const rD = frameData[iDown] || r;
+        const gD = frameData[iDown + 1] || g;
+        const bD = frameData[iDown + 2] || b;
+        const lumaD = 0.299 * rD + 0.587 * gD + 0.114 * bD;
+
+        if (Math.abs(luma - lumaD) > 42) {
+          cheekHits++;
+        }
+      }
+    }
+
+    // Specular Polycarbonate Lens Glints
+    let glintHits = 0;
+    for (let y = glintY0; y < glintY1; y += 2) {
+      for (let x = glintX0; x < glintX1; x += 2) {
+        const i = (y * 320 + x) * 4;
+        const r = frameData[i];
+        const g = frameData[i + 1];
+        const b = frameData[i + 2];
+        if (r > 215 && g > 215 && b > 215) {
+          glintHits++;
+        }
       }
     }
 
@@ -657,9 +704,10 @@ export class SafeSightVisionEngine {
 
     const helmetOk = headSampleTotal > 0 && (yellowHelmetCount / headSampleTotal) > 0.12 && (darkHairCount / headSampleTotal) < 0.25;
     const vestOk = torsoSampleTotal > 0 && (hiVisVestCount / torsoSampleTotal) > 0.18;
-    const edgeRatio = eyeSampleTotal > 0 ? eyeGradientHits / eyeSampleTotal : 0;
-    const darkFrameRatio = eyeSampleTotal > 0 ? darkFrameHits / eyeSampleTotal : 0;
-    const eyewearOk = edgeRatio > 0.08 || darkFrameRatio > 0.05 || specularGlintHits >= 3;
+
+    const bridgeRatio = bridgeTotal > 0 ? bridgeHits / bridgeTotal : 0;
+    const cheekRatio = cheekTotal > 0 ? cheekHits / cheekTotal : 0;
+    const eyewearOk = (bridgeRatio > 0.22 && cheekRatio > 0.14) || (cheekRatio > 0.24) || (glintHits >= 5 && bridgeRatio > 0.14);
     const baseConf = Math.min(0.98, person.confidence * 0.96);
 
     // Dynamic Head/Helmet Bounding Box
@@ -715,6 +763,7 @@ export class SafeSightVisionEngine {
 
     const isNoHelmet = scenario === 'no_helmet';
     const isNoVest = scenario === 'no_vest';
+    const isNoGlasses = scenario === 'no_glasses';
     const isZoneBreach = scenario === 'zone_breach';
     const isSlipFall = scenario === 'slip_fall';
 
@@ -850,27 +899,52 @@ export class SafeSightVisionEngine {
     }
 
     // Glasses
-    objects.push({
-      id: 'sim-glasses',
-      class: 'glasses',
-      label: 'Protective Eyewear / Glasses (ANSI Z87.1)',
-      confidence: 0.94,
-      color: '#10B981',
-      x: 40,
-      y: 22,
-      width: 20,
-      height: 9,
-      isViolation: false,
-    });
-    ppeResults.push({
-      id: 'ppe-res-glasses',
-      type: 'glasses',
-      label: 'Protective Eyewear',
-      isCompliant: true,
-      confidence: 0.94,
-      bbox: [0.4, 0.22, 0.2, 0.09],
-      timestamp: new Date().toISOString(),
-    });
+    if (isNoGlasses) {
+      objects.push({
+        id: 'sim-no-glasses',
+        class: 'no_glasses',
+        label: 'MISSING EYE PROTECTION (VIOLATION)',
+        confidence: 0.96,
+        color: '#EF4444',
+        x: 40,
+        y: 22,
+        width: 20,
+        height: 9,
+        isViolation: true,
+      });
+      violationLabels.push('Missing Protective Eyewear / Glasses');
+      ppeResults.push({
+        id: 'ppe-res-glasses',
+        type: 'glasses',
+        label: 'Protective Eyewear',
+        isCompliant: false,
+        confidence: 0.96,
+        bbox: [0.4, 0.22, 0.2, 0.09],
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      objects.push({
+        id: 'sim-glasses',
+        class: 'glasses',
+        label: 'Safety Glasses / Eyewear (ANSI Z87.1)',
+        confidence: 0.94,
+        color: '#10B981',
+        x: 40,
+        y: 22,
+        width: 20,
+        height: 9,
+        isViolation: false,
+      });
+      ppeResults.push({
+        id: 'ppe-res-glasses',
+        type: 'glasses',
+        label: 'Protective Eyewear',
+        isCompliant: true,
+        confidence: 0.94,
+        bbox: [0.4, 0.22, 0.2, 0.09],
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     const compliantCount = ppeResults.filter((p) => p.isCompliant).length;
     const compliancePercentage = Math.round((compliantCount / ppeResults.length) * 100);
