@@ -6,16 +6,11 @@ import {
   Users,
   Activity,
   Navigation,
-  AlertCircle,
-  Eye,
   CheckCircle,
-  X,
-  Radio,
-  Zap,
-} from 'lucide-react';
+  Radio } from 'lucide-react';
 
 export const FactoryFloorTwin: React.FC = () => {
-  const { t, iotTelemetry, alerts, evacuation } = useSafeSight();
+  const { t } = useSafeSight();
 
   const [showHeatmap, setShowHeatmap] = useState<boolean>(true);
   const [showWorkers, setShowWorkers] = useState<boolean>(true);
@@ -41,27 +36,22 @@ export const FactoryFloorTwin: React.FC = () => {
       title: t.digitalTwin.zoneA,
       risk: 'medium',
       workersCount: 4,
-      sensor: 'H2S: 4.8 ppm | Temp: 34.5°C',
-    },
+      sensor: 'H2S: 4.8 ppm | Temp: 34.5°C' },
     'Zone B': {
       title: t.digitalTwin.zoneB,
       risk: 'high',
       workersCount: 6,
-      sensor: 'Noise: 89.2 dBA | Vib: 5.8 mm/s',
-    },
+      sensor: 'Noise: 89.2 dBA | Vib: 5.8 mm/s' },
     'Zone C': {
       title: t.digitalTwin.zoneC,
       risk: 'low',
       workersCount: 3,
-      sensor: 'Laser Interlock: Active | Temp: 31.8°C',
-    },
+      sensor: 'Laser Interlock: Active | Temp: 31.8°C' },
     'Zone D': {
       title: t.digitalTwin.zoneD,
       risk: 'medium',
       workersCount: 8,
-      sensor: 'Forklift Telemetry: 2 Active | Speed: Safe',
-    },
-  };
+      sensor: 'Forklift Telemetry: 2 Active | Speed: Safe' } };
 
   return (
     <div className="space-y-4">

@@ -5,24 +5,20 @@ import { SafetyCourse } from '../../core/types';
 import {
   GraduationCap,
   Award,
-  BookOpen,
   CheckCircle2,
   Volume2,
   HelpCircle,
   Sparkles,
   Trophy,
   X,
-  ShieldCheck,
-  Zap,
   Users,
-  Printer,
-} from 'lucide-react';
+  Printer } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { soundEngine } from '../../core/speech';
 import { updateCourseProgress as dbUpdateCourseProgress, getAllWorkers as dbGetAllWorkers } from '@/actions/workers';
 
 export const WorkerSafetyAcademy: React.FC = () => {
-  const { t, language, userPoints, addPoints, isDbConnected } = useSafeSight();
+  const { t, language, userPoints, addPoints } = useSafeSight();
   const [selectedCourse, setSelectedCourse] = useState<SafetyCourse>(SAFETY_COURSES[0]);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isQuizSubmitted, setIsQuizSubmitted] = useState<boolean>(false);
@@ -61,8 +57,7 @@ export const WorkerSafetyAcademy: React.FC = () => {
         confetti({
           particleCount: 80,
           spread: 70,
-          origin: { y: 0.6 },
-        });
+          origin: { y: 0.6 } });
       }
     }
   };
@@ -83,14 +78,12 @@ export const WorkerSafetyAcademy: React.FC = () => {
         courseTitle: selectedCourse.title.en,
         status: 'completed',
         quizScore: 100,
-        xpEarned: selectedCourse.xpPoints,
-      }).catch(() => {});
+        xpEarned: selectedCourse.xpPoints }).catch(() => {});
 
       confetti({
         particleCount: 100,
         spread: 80,
-        origin: { y: 0.6 },
-      });
+        origin: { y: 0.6 } });
     } else {
       soundEngine.playAlertBeep('warning');
     }

@@ -7,13 +7,11 @@ import {
   Volume2,
   ShieldCheck,
   CheckCircle2,
-  XCircle,
   Trophy,
   Sparkles,
   RefreshCw,
   CheckSquare,
-  Square,
-} from 'lucide-react';
+  Square } from 'lucide-react';
 import { soundEngine } from '../../core/speech';
 import confetti from 'canvas-confetti';
 
@@ -60,8 +58,7 @@ export const WorkerMobileCompanion: React.FC = () => {
       confetti({
         particleCount: 50,
         spread: 60,
-        origin: { y: 0.7 },
-      });
+        origin: { y: 0.7 } });
     }, 1800);
   };
 
@@ -76,8 +73,7 @@ export const WorkerMobileCompanion: React.FC = () => {
     en: 'Good morning safety briefing: Zone B has active heavy machinery maintenance. Keep safety goggles and hard hats on at all times.',
     my: 'မင်္ဂလာနံနက်ခင်းပါ! ယနေ့သတိပြုရန်- ဇုန် B တွင် စက်ယန္တရားကြီးများ ပြုပြင်နေသဖြင့် မျက်မှန်နှင့် ဦးထုပ်ကို အမြဲဝတ်ဆင်ထားပါ။',
     km: 'អរុណសួស្តី! ការណែនាំថ្ងៃនេះ៖ តំបន់ B មានការជួសជុលម៉ាស៊ីនធ្ងន់ៗ សូមពាក់វ៉ែនតា និងមួកសុវត្ថិភាពជានិច្ច។',
-    lo: 'ສະບາຍດີຕອນເຊົ້າ! ຂໍ້ຄວນລະວັງມື້ນີ້: ໂຊນ B ມີການສ້ອມແປງເຄື່ອງຈັກໜັກ ກະລຸນາໃສ່ແວ່ນຕາ ແລະ ໝວກຕະຫຼອດເວລາ.',
-  };
+    lo: 'ສະບາຍດີຕອນເຊົ້າ! ຂໍ້ຄວນລະວັງມື້ນີ້: ໂຊນ B ມີການສ້ອມແປງເຄື່ອງຈັກໜັກ ກະລຸນາໃສ່ແວ່ນຕາ ແລະ ໝວກຕະຫຼອດເວລາ.' };
 
   return (
     <div className="space-y-4 max-w-xl mx-auto">

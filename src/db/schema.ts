@@ -96,6 +96,16 @@ export const courseProgress = pgTable('course_progress', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+// ─── SafeSight LINE Messages (Chatbot & Webhook Communication) ─────────────
+export const lineMessages = pgTable('safesight_line_messages', {
+  id: serial('id').primaryKey(),
+  lineUserId: varchar('line_user_id', { length: 128 }).notNull(),
+  role: varchar('role', { length: 16 }).notNull(), // 'user' | 'assistant'
+  messageText: text('message_text').notNull(),
+  messageType: varchar('message_type', { length: 32 }).default('text'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ─── Type exports for use in Server Actions ─────────────────────────────────
 export type SafetyAlert = typeof safetyAlerts.$inferSelect;
 export type NewSafetyAlert = typeof safetyAlerts.$inferInsert;
@@ -109,3 +119,6 @@ export type IoTReading = typeof iotReadings.$inferSelect;
 export type NewIoTReading = typeof iotReadings.$inferInsert;
 export type CourseProgressEntry = typeof courseProgress.$inferSelect;
 export type NewCourseProgressEntry = typeof courseProgress.$inferInsert;
+export type LineMessage = typeof lineMessages.$inferSelect;
+export type NewLineMessage = typeof lineMessages.$inferInsert;
+

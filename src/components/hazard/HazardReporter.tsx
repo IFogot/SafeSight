@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSafeSight } from '../../core/store';
 import {
   AlertTriangle,
@@ -11,12 +11,7 @@ import {
   Volume2,
   CheckCircle2,
   Clock,
-  Sparkles,
-  Upload,
-  Eye,
-  Check,
-  Filter,
-} from 'lucide-react';
+  Sparkles } from 'lucide-react';
 import { soundEngine } from '../../core/speech';
 import { SupportedLanguage } from '../../core/types';
 import { updateHazardStatus as dbUpdateHazardStatus } from '@/actions/hazards';
@@ -25,6 +20,7 @@ export const HazardReporter: React.FC = () => {
   const { t, language, hazardReports, addHazardReport, upvoteHazardReport, addPoints, isDbConnected } = useSafeSight();
 
   const [isRecording, setIsRecording] = useState<boolean>(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [reportTitle, setReportTitle] = useState<string>('');
   const [reportDesc, setReportDesc] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<
@@ -39,6 +35,15 @@ export const HazardReporter: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const langMap: Record<SupportedLanguage, string> = {
+    th: 'th-TH', en: 'en-US', my: 'my-MM', km: 'km-KH', lo: 'lo-LA',
+  };
+
+  // Clean up recognition on unmount
+  useEffect(() => {
+    return () => { recognitionRef.current?.abort(); recognitionRef.current = null; };
+  }, []);
 
   // Handle Photo Upload
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,46 +74,56 @@ export const HazardReporter: React.FC = () => {
     }, 1500);
   };
 
-  // Voice Dictation in active language
-  const handleToggleVoiceRecord = () => {
-    if (!isRecording) {
-      setIsRecording(true);
-      soundEngine.playAlertBeep('warning');
-
-      const samples: Record<SupportedLanguage, { title: string; desc: string }> = {
-        th: {
-          title: 'พบคราบน้ำมันไฮดรอลิกรั่วซึมหน้าแท่นปั๊ม',
-          desc: 'มีน้ำมันเครื่องไหลนองพื้นบริเวณแท่นปั๊มโลหะ โซน B คนงานเดินผ่านเสี่ยงลื่นล้ม ขอทีมทำความสะอาดด่วนครับ',
-        },
-        en: {
-          title: 'Hydraulic oil leakage in front of stamping press',
-          desc: 'Oil is pooling on the floor near Stamping Press 04 in Zone B. Severe slip hazard for workers.',
-        },
-        my: {
-          title: 'သတ္တုပုံသွင်းစက်အနီး ဆီယိုစိမ့်မှု',
-          desc: 'ဇုန် B စက်အနီးတွင် ဆီများ ယိုကျနေသဖြင့် အလုပ်သမားများ ချော်လဲနိုင်ပါသည်။ သန့်ရှင်းရေး အမြန်လုပ်ပေးပါခင်ဗျာ။',
-        },
-        km: {
-          title: 'ការលេចធ្លាយប្រេងម៉ាស៊ីននៅតំបន់ B',
-          desc: 'មានប្រេងហៀរលើកម្រាលឥដ្ឋក្បែរម៉ាស៊ីនកាត់ដែក ប្រឈមនឹងការរអិលដួលខ្លាំង។',
-        },
-        lo: {
-          title: 'ພົບນ້ຳມັນໄຮໂດຣລິກຮົ່ວໄຫຼໜ້າເຄື່ອງຈັກ',
-          desc: 'ມີນ້ຳມັນໄຫຼນອງພື້ນບໍລິເວນໂຊນ B ຄົນງານຍ່າງຜ່ານສ່ຽງມື່ນລົ້ມ ຂໍທີມອະນາໄມດ່ວນ.',
-        },
-      };
-
-      setTimeout(() => {
-        const sample = samples[language] || samples.th;
-        setReportTitle(sample.title);
-        setReportDesc(sample.desc);
-        setIsRecording(false);
-        soundEngine.playAlertBeep('success');
-      }, 2000);
-    } else {
+  // Voice Dictation using Web Speech API
+  const handleToggleVoiceRecord = useCallback(() => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
       setIsRecording(false);
+      return;
     }
-  };
+
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      alert('Speech recognition is not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognitionRef.current = recognition;
+    recognition.lang = langMap[language] || 'th-TH';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    let finalTranscript = reportDesc;
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += (finalTranscript && !finalTranscript.endsWith(' ') ? ' ' : '') + transcript;
+        } else {
+          interim = transcript;
+        }
+      }
+      setReportDesc(finalTranscript + interim);
+    };
+
+    recognition.onerror = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    setIsRecording(true);
+    soundEngine.playAlertBeep('warning');
+    try { recognition.start(); } catch { /* already started */ }
+  }, [isRecording, language, reportDesc, setReportDesc]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,8 +145,7 @@ export const HazardReporter: React.FC = () => {
       descriptionOriginal: reportDesc,
       descriptionTranslated: translatedText,
       severity: selectedSeverity,
-      status: 'pending',
-    });
+      status: 'pending' });
 
     addPoints(40);
     setIsSubmitted(true);

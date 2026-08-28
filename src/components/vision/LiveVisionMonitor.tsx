@@ -4,26 +4,20 @@ import {
   Camera,
   Grid,
   UploadCloud,
-  ShieldCheck,
   AlertTriangle,
-  Volume2,
-  Zap,
-  CheckCircle2,
-  XCircle,
   Download,
   RefreshCw,
   Sparkles,
   FileVideo,
   MonitorPlay,
-  Settings2,
-} from 'lucide-react';
+  Settings2 } from 'lucide-react';
 import { visionEngine, DetectionFrameState, SimulatedScenario } from '../../engine/visionDetector';
 import { videoSourceManager } from '../../engine/videoSource';
 import { MediaScannerModal } from './MediaScannerModal';
 import { soundEngine } from '../../core/speech';
 
 export const LiveVisionMonitor: React.FC = () => {
-  const { t, language, addAlert, channels } = useSafeSight();
+  const { t, addAlert } = useSafeSight();
 
   const [activeMode, setActiveMode] = useState<'webcam' | 'cctv'>('webcam');
   const [sourceState, setSourceState] = useState<'idle' | 'requesting' | 'active' | 'denied' | 'error'>('idle');
@@ -33,7 +27,6 @@ export const LiveVisionMonitor: React.FC = () => {
   const [snapshotCaptured, setSnapshotCaptured] = useState<boolean>(false);
   const [activeScenario, setActiveScenario] = useState<SimulatedScenario>('none');
   const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.35);
-  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -82,7 +75,9 @@ export const LiveVisionMonitor: React.FC = () => {
   }, [activeMode, startWebcam, stopSource]);
 
   // Real-time AI inference loop — heavy inference is throttled (~6 Hz) while
-  // the overlay redraws every animation frame from cached results (cheap)
+  // the overlay redraws every animation frame from cached results (cheap).
+  // The loop is failure-proof: any inference error is surfaced as a state and
+  // the rAF chain always continues.
   useEffect(() => {
     if (activeMode !== 'webcam' || sourceState !== 'active') return;
 
@@ -94,7 +89,9 @@ export const LiveVisionMonitor: React.FC = () => {
     const INFERENCE_MIN_INTERVAL = 180;
 
     const runInference = async () => {
+      if (!isRunning) return;
       const now = performance.now();
+
       if (
         !inFlight &&
         videoRef.current &&
@@ -122,25 +119,38 @@ export const LiveVisionMonitor: React.FC = () => {
                 en: `AI Vision detected safety risk: ${violation}`,
                 my: `AI စနစ်က ဘေးကင်းရေးချိုးဖောက်မှု တွေ့ရှိသည်: ${violation}`,
                 km: `ប្រព័ន្ធ AI បានរកឃើញហានិភ័យ៖ ${violation}`,
-                lo: `ລະບົບ AI ກວດພົບຄວາມສ່ຽງ: ${violation}`,
-              },
+                lo: `ລະບົບ AI ກວດພົບຄວາມສ່ຽງ: ${violation}` },
               audioText: {
                 th: `แจ้งเตือนความปลอดภัย ตรวจพบ ${violation}`,
                 en: `Safety warning. ${violation} detected in active zone.`,
                 my: `ဘေးကင်းရေးသတိပေးချက်။ ${violation} ကို တွေ့ရှိသည်။`,
                 km: `ការព្រមានសុវត្ថិភាព។ បានរកឃើញ ${violation}។`,
-                lo: `ແຈ້ງເຕືອນຄວາມປອດໄພ. ກວດພົບ ${violation}.`,
-              },
-              acknowledged: false,
-            });
+                lo: `ແຈ້ງເຕືອນຄວາມປອດໄພ. ກວດພົບ ${violation}.` },
+              acknowledged: false });
           }
+        } catch (err) {
+          // Never let one bad frame kill the loop — surface it instead
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn('[SafeSight Vision] Frame analysis failed:', message);
+          lastState = {
+            objects: lastState?.objects ?? [],
+            ppeResults: lastState?.ppeResults ?? [],
+            compliancePercentage: lastState?.compliancePercentage ?? 100,
+            hasViolation: false,
+            violationLabels: [],
+            personCount: lastState?.personCount ?? 0,
+            fps: lastState?.fps ?? 0,
+            modelStatus: 'error',
+            modelMessage: `Frame error: ${message.slice(0, 120)}`,
+            engineMode: lastState?.engineMode ?? 'yolo_onnx' };
+          setDetectionState(lastState);
         } finally {
           inFlight = false;
         }
       }
 
       // Redraw overlay from cached state every frame (boxes persist smoothly)
-      if (videoRef.current && overlayCanvasRef.current && lastState) {
+      if (videoRef.current && overlayCanvasRef.current) {
         const target = videoRef.current;
         if (
           overlayCanvasRef.current.width !== target.clientWidth ||
@@ -149,7 +159,9 @@ export const LiveVisionMonitor: React.FC = () => {
           overlayCanvasRef.current.width = target.clientWidth || 640;
           overlayCanvasRef.current.height = target.clientHeight || 360;
         }
-        visionEngine.renderOverlay(overlayCanvasRef.current, lastState, true);
+        if (lastState) {
+          visionEngine.renderOverlay(overlayCanvasRef.current, lastState, true);
+        }
       }
 
       if (isRunning) animId = requestAnimationFrame(() => void runInference());
@@ -489,8 +501,7 @@ const CCTVMatrix: React.FC = () => {
         c.id,
         {
           state: persisted[c.id] ? 'active' : 'idle',
-          config: persisted[c.id],
-        },
+          config: persisted[c.id] },
       ])
     );
   });
@@ -532,8 +543,7 @@ const CCTVMatrix: React.FC = () => {
     const ok = await attachSourceToVideo(channelId, { kind: 'file', src: url, label: file.name });
     setChannelSource(channelId, {
       state: ok ? 'active' : 'error',
-      config: ok ? { kind: 'file', src: url, label: file.name } : undefined,
-    });
+      config: ok ? { kind: 'file', src: url, label: file.name } : undefined });
   };
 
   const startChannelUrl = async (channelId: string, rawUrl: string) => {
@@ -542,8 +552,7 @@ const CCTVMatrix: React.FC = () => {
     const ok = await attachSourceToVideo(channelId, { kind: 'url', src: url, label: url });
     setChannelSource(channelId, {
       state: ok ? 'active' : 'error',
-      config: ok ? { kind: 'url', src: url, label: url } : undefined,
-    });
+      config: ok ? { kind: 'url', src: url, label: url } : undefined });
     if (ok) setUrlInputs((prev) => ({ ...prev, [channelId]: '' }));
   };
 

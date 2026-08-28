@@ -51,8 +51,7 @@ function envConfig(): VisionModelConfig {
     labels,
     inputSize: Number(process.env.NEXT_PUBLIC_YOLO_INPUT_SIZE || 640),
     confidenceThreshold: Number(process.env.NEXT_PUBLIC_YOLO_CONFIDENCE || 0.35),
-    iouThreshold: Number(process.env.NEXT_PUBLIC_YOLO_IOU || 0.45),
-  };
+    iouThreshold: Number(process.env.NEXT_PUBLIC_YOLO_IOU || 0.45) };
 }
 
 function iou(a: [number, number, number, number], b: [number, number, number, number]) {
@@ -98,8 +97,7 @@ export class SafeSightVisionEngine {
       }
       this.loadPromise = ort.InferenceSession.create(this.config.modelUrl, {
         executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-      })
+        graphOptimizationLevel: 'all' })
         .then((session) => {
           this.session = session;
           this.loadError = null;
@@ -149,17 +147,26 @@ export class SafeSightVisionEngine {
 
         const objects = detections.map((d, index) => this.toObject(d, index));
         const persons = objects.filter((object) => object.label.toLowerCase() === 'person');
-        const ppe = objects
-          .filter((object) => this.toPpeType(object.label))
-          .map((object) => ({
-            id: object.id,
-            type: this.toPpeType(object.label) as PPEType,
-            label: object.label,
-            isCompliant: !object.isViolation,
-            confidence: object.confidence,
-            bbox: [object.x / 100, object.y / 100, object.width / 100, object.height / 100] as [number, number, number, number],
-            timestamp: new Date().toISOString(),
-          }));
+
+        // Hybrid depth: COCO has no PPE classes, so analyze each detected
+        // person's head/torso regions with color heuristics — verdicts follow
+        // the person box, not a fixed screen position.
+        persons.slice(0, 3).forEach((person) => {
+          objects.push(...this.analyzePersonPpe(source, person));
+        });
+
+        const ppe = [
+          ...objects
+            .filter((object) => this.toPpeType(object.label))
+            .map((object) => ({
+              id: object.id,
+              type: this.toPpeType(object.label) as PPEType,
+              label: object.label,
+              isCompliant: !object.isViolation,
+              confidence: object.confidence,
+              bbox: [object.x / 100, object.y / 100, object.width / 100, object.height / 100] as [number, number, number, number],
+              timestamp: new Date().toISOString() })),
+        ];
         const violations = objects.filter((object) => object.isViolation).map((object) => object.label);
         const compliantCount = ppe.filter((p) => p.isCompliant).length;
         const compliancePct = ppe.length > 0 ? Math.round((compliantCount / ppe.length) * 100) : 100;
@@ -175,10 +182,9 @@ export class SafeSightVisionEngine {
           modelStatus: 'ready' as const,
           modelMessage:
             detections.length > 0
-              ? `ONNX YOLOv8 WASM • ${objects.length} Detections • ${inferenceMs}ms`
+              ? `ONNX YOLOv8 WASM • ${objects.length} Detections • ${persons.length} persons • ${inferenceMs}ms`
               : `ONNX YOLOv8 WASM • 0 detections (${inferenceMs}ms) — lower confidence below ${(userConfidence ?? this.config.confidenceThreshold ?? 0.35) * 100}%`,
-          engineMode: 'yolo_onnx' as const,
-        };
+          engineMode: 'yolo_onnx' as const };
       } catch (err) {
         console.warn('[SafeSight Vision] ONNX inference error:', err);
         return {
@@ -191,8 +197,7 @@ export class SafeSightVisionEngine {
           fps: this.currentFps || 30,
           modelStatus: 'error' as const,
           modelMessage: `ONNX inference failed: ${err instanceof Error ? err.message : String(err)}`,
-          engineMode: 'yolo_onnx' as const,
-        };
+          engineMode: 'yolo_onnx' as const };
       }
     }
 
@@ -218,7 +223,6 @@ export class SafeSightVisionEngine {
     ctx.drawImage(source, 0, 0, 320, 240);
     const frameData = ctx.getImageData(0, 0, 320, 240).data;
 
-    let totalPixels = 320 * 240;
     let yellowPixelsHead = 0;
     let orangeHiVisPixels = 0;
     let cyanVestPixels = 0;
@@ -288,8 +292,7 @@ export class SafeSightVisionEngine {
       y: 14,
       width: 44,
       height: 76,
-      isViolation: false,
-    });
+      isViolation: false });
 
     // Helmet Detection
     const helmetCompliant = hasHelmetColor;
@@ -303,8 +306,7 @@ export class SafeSightVisionEngine {
       y: 14,
       width: 22,
       height: 16,
-      isViolation: !helmetCompliant,
-    });
+      isViolation: !helmetCompliant });
     if (!helmetCompliant) {
       violationLabels.push('Missing Safety Helmet / Hard Hat');
     }
@@ -315,8 +317,7 @@ export class SafeSightVisionEngine {
       isCompliant: helmetCompliant,
       confidence: helmetCompliant ? 0.96 : 0.93,
       bbox: [0.39, 0.14, 0.22, 0.16],
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: new Date().toISOString() });
 
     // Hi-Vis Vest Detection
     const vestCompliant = hasVestColor;
@@ -330,8 +331,7 @@ export class SafeSightVisionEngine {
       y: 30,
       width: 32,
       height: 35,
-      isViolation: !vestCompliant,
-    });
+      isViolation: !vestCompliant });
     if (!vestCompliant) {
       violationLabels.push('Missing Hi-Vis Safety Vest');
     }
@@ -342,8 +342,7 @@ export class SafeSightVisionEngine {
       isCompliant: vestCompliant,
       confidence: vestCompliant ? 0.95 : 0.91,
       bbox: [0.34, 0.3, 0.32, 0.35],
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: new Date().toISOString() });
 
     // Safety Goggles Detection
     objects.push({
@@ -356,8 +355,7 @@ export class SafeSightVisionEngine {
       y: 22,
       width: 12,
       height: 5,
-      isViolation: false,
-    });
+      isViolation: false });
     ppeResults.push({
       id: 'res-glasses',
       type: 'glasses',
@@ -365,8 +363,7 @@ export class SafeSightVisionEngine {
       isCompliant: true,
       confidence: 0.91,
       bbox: [0.44, 0.22, 0.12, 0.05],
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: new Date().toISOString() });
 
     // Safety Steel-Toe Boots
     objects.push({
@@ -379,8 +376,7 @@ export class SafeSightVisionEngine {
       y: 78,
       width: 28,
       height: 12,
-      isViolation: false,
-    });
+      isViolation: false });
     ppeResults.push({
       id: 'res-boots',
       type: 'boots',
@@ -388,8 +384,7 @@ export class SafeSightVisionEngine {
       isCompliant: true,
       confidence: 0.94,
       bbox: [0.36, 0.78, 0.28, 0.12],
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: new Date().toISOString() });
 
     const compliantCount = ppeResults.filter((p) => p.isCompliant).length;
     const compliancePercentage = Math.round((compliantCount / ppeResults.length) * 100);
@@ -406,8 +401,110 @@ export class SafeSightVisionEngine {
       modelMessage: this.loadError
         ? `Model load failed (${this.loadError.slice(0, 80)}) — color-heuristic CV fallback`
         : `Model not loaded — color-heuristic CV fallback (approximate)`,
-      engineMode: 'realtime_cv',
+      engineMode: 'realtime_cv' };
+  }
+
+  /**
+   * Per-person PPE analysis: samples the head and torso sub-regions of a YOLO
+   * person box for hard-hat / hi-vis color signatures. Coordinates are the
+   * normalized 0-100 percent space used by BoundingBoxObject.
+   */
+  private analyzePersonPpe(source: Source, person: BoundingBoxObject): BoundingBoxObject[] {
+    const results: BoundingBoxObject[] = [];
+    if (typeof window === 'undefined') return results;
+
+    if (!this.offscreenCanvas) {
+      this.offscreenCanvas = document.createElement('canvas');
+      this.offscreenCanvas.width = 320;
+      this.offscreenCanvas.height = 240;
+    }
+    const canvas = this.offscreenCanvas;
+    canvas.width = 320;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return results;
+
+    try {
+      ctx.drawImage(source, 0, 0, 320, 240);
+    } catch {
+      return results; // cross-origin or not-ready frame
+    }
+
+    const px = (pctX: number) => Math.round((pctX / 100) * 320);
+    const py = (pctY: number) => Math.round((pctY / 100) * 240);
+
+    // Head region: top 25% of the person box, horizontally centered
+    const headX0 = px(person.x + person.width * 0.2);
+    const headX1 = px(person.x + person.width * 0.8);
+    const headY0 = py(person.y);
+    const headY1 = py(person.y + Math.min(person.height * 0.25, person.height));
+
+    // Torso region: 30–70% down the person box
+    const torsoX0 = px(person.x + person.width * 0.1);
+    const torsoX1 = px(person.x + person.width * 0.9);
+    const torsoY0 = py(person.y + person.height * 0.3);
+    const torsoY1 = py(person.y + person.height * 0.7);
+
+    let frameData: Uint8ClampedArray;
+    try {
+      frameData = ctx.getImageData(0, 0, 320, 240).data;
+    } catch {
+      return results;
+    }
+
+    const sample = (
+      x0: number, y0: number, x1: number, y1: number,
+      match: (r: number, g: number, b: number) => boolean
+    ): number => {
+      let hits = 0;
+      let total = 0;
+      for (let y = Math.max(0, y0); y < Math.min(240, y1); y += 3) {
+        for (let x = Math.max(0, x0); x < Math.min(320, x1); x += 3) {
+          total++;
+          const i = (y * 320 + x) * 4;
+          if (match(frameData[i], frameData[i + 1], frameData[i + 2])) hits++;
+        }
+      }
+      return total > 0 ? hits / total : 0;
     };
+
+    const helmetRatio = sample(headX0, headY0, headX1, headY1, (r, g, b) =>
+      // yellow hard hat OR white hard hat
+      (r > 160 && g > 140 && b < 100 && r - b > 60) || (r > 210 && g > 210 && b > 210)
+    );
+    const vestRatio = sample(torsoX0, torsoY0, torsoX1, torsoY1, (r, g, b) =>
+      // hi-vis lime / orange / cyan
+      (g > 150 && r > 140 && b < 110) || (r > 180 && g > 60 && g < 160 && b < 80) || (b > 150 && g > 130 && r < 100)
+    );
+
+    const helmetOk = helmetRatio > 0.12;
+    const vestOk = vestRatio > 0.18;
+    const baseConf = Math.min(0.98, person.confidence * 0.95);
+
+    results.push({
+      id: `${person.id}-helmet`,
+      class: helmetOk ? 'helmet' : 'no_helmet',
+      label: helmetOk ? 'Hard Hat Detected' : 'MISSING HARD HAT (VIOLATION)',
+      confidence: baseConf,
+      color: helmetOk ? '#00A050' : '#FB2C36',
+      x: person.x + person.width * 0.25,
+      y: person.y,
+      width: person.width * 0.5,
+      height: person.height * 0.22,
+      isViolation: !helmetOk });
+    results.push({
+      id: `${person.id}-vest`,
+      class: vestOk ? 'vest' : 'no_vest',
+      label: vestOk ? 'Hi-Vis Vest Detected' : 'MISSING HI-VIS VEST (VIOLATION)',
+      confidence: baseConf,
+      color: vestOk ? '#00A050' : '#FB2C36',
+      x: person.x + person.width * 0.15,
+      y: person.y + person.height * 0.3,
+      width: person.width * 0.7,
+      height: person.height * 0.38,
+      isViolation: !vestOk });
+
+    return results;
   }
 
   // Simulated Scenario Generator for Professor Testing
@@ -432,8 +529,7 @@ export class SafeSightVisionEngine {
       y: isSlipFall ? 58 : 16,
       width: isSlipFall ? 65 : 40,
       height: isSlipFall ? 32 : 74,
-      isViolation: isSlipFall,
-    };
+      isViolation: isSlipFall };
     objects.push(workerBox);
 
     if (isSlipFall) {
@@ -451,8 +547,7 @@ export class SafeSightVisionEngine {
       y: 16,
       width: 20,
       height: 14,
-      isViolation: isNoHelmet,
-    });
+      isViolation: isNoHelmet });
     if (isNoHelmet) violationLabels.push('Missing Safety Helmet / Hard Hat');
     ppeResults.push({
       id: 'ppe-1',
@@ -461,8 +556,7 @@ export class SafeSightVisionEngine {
       isCompliant: !isNoHelmet,
       confidence: isNoHelmet ? 0.95 : 0.97,
       bbox: [0.4, 0.16, 0.2, 0.14],
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: new Date().toISOString() });
 
     // Vest
     objects.push({
@@ -475,8 +569,7 @@ export class SafeSightVisionEngine {
       y: 30,
       width: 30,
       height: 32,
-      isViolation: isNoVest,
-    });
+      isViolation: isNoVest });
     if (isNoVest) violationLabels.push('Missing Hi-Vis Safety Vest');
     ppeResults.push({
       id: 'ppe-2',
@@ -485,8 +578,7 @@ export class SafeSightVisionEngine {
       isCompliant: !isNoVest,
       confidence: isNoVest ? 0.93 : 0.96,
       bbox: [0.35, 0.3, 0.3, 0.32],
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: new Date().toISOString() });
 
     // Glasses
     objects.push({
@@ -499,8 +591,7 @@ export class SafeSightVisionEngine {
       y: 22,
       width: 12,
       height: 5,
-      isViolation: false,
-    });
+      isViolation: false });
     ppeResults.push({
       id: 'ppe-3',
       type: 'glasses',
@@ -508,8 +599,7 @@ export class SafeSightVisionEngine {
       isCompliant: true,
       confidence: 0.92,
       bbox: [0.44, 0.22, 0.12, 0.05],
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: new Date().toISOString() });
 
     // Zone Breach
     if (isZoneBreach) {
@@ -523,8 +613,7 @@ export class SafeSightVisionEngine {
         y: 8,
         width: 70,
         height: 84,
-        isViolation: true,
-      });
+        isViolation: true });
       violationLabels.push('Restricted Machine Zone Perimeter Breach (<1.5m radius)');
     }
 
@@ -541,8 +630,7 @@ export class SafeSightVisionEngine {
       fps: this.currentFps || 30,
       modelStatus: 'ready',
       modelMessage: `Scenario Simulation: ${scenario.toUpperCase()}`,
-      engineMode: 'simulation',
-    };
+      engineMode: 'simulation' };
   }
 
   private toTensor(source: Source) {
@@ -667,8 +755,7 @@ export class SafeSightVisionEngine {
       y: y * 100,
       width: width * 100,
       height: height * 100,
-      isViolation: violation,
-    };
+      isViolation: violation };
   }
 
   private toPpeType(label: string): PPEType | null {
@@ -693,8 +780,7 @@ export class SafeSightVisionEngine {
       fps: this.currentFps || 30,
       modelStatus: status,
       modelMessage: message,
-      engineMode: 'realtime_cv',
-    };
+      engineMode: 'realtime_cv' };
   }
 
   // Draw cyber HUD bounding boxes onto overlay Canvas

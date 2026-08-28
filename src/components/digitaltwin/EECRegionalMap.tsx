@@ -7,12 +7,8 @@ import {
   Building2,
   Users,
   ShieldCheck,
-  AlertTriangle,
-  ExternalLink,
-  ChevronRight,
   TrendingDown,
-  Globe2,
-} from 'lucide-react';
+  Globe2 } from 'lucide-react';
 
 export const EECRegionalMap: React.FC = () => {
   const { t } = useSafeSight();

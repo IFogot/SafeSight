@@ -9,7 +9,7 @@ interface MediaScannerModalProps {
 }
 
 export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, onClose }) => {
-  const { t, addAlert, language } = useSafeSight();
+  const { t, addAlert } = useSafeSight();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanComplete, setScanComplete] = useState<boolean>(false);
@@ -64,17 +64,14 @@ export const MediaScannerModal: React.FC<MediaScannerModalProps> = ({ isOpen, on
           en: `Detected ${violations.join(', ')} from uploaded photo.`,
           my: `တင်ထားသော ဓာတ်ပုံတွင် ${violations.join(', ')} တွေ့ရှိသည်`,
           km: `បានរកឃើញ ${violations.join(', ')} ពីរូបថតដែលបានបញ្ចូល`,
-          lo: `ກວດພົບ ${violations.join(', ')} ຈາກຮູບທີ່ອັບໂຫຼດ`,
-        },
+          lo: `ກວດພົບ ${violations.join(', ')} ຈາກຮູບທີ່ອັບໂຫຼດ` },
         audioText: {
           th: 'เตือนอันตราย! กรุณาสวมใส่อุปกรณ์คุ้มครองความปลอดภัยให้ครบถ้วน',
           en: 'Warning! Please ensure complete PPE equipment is worn.',
           my: 'သတိပေးချက်! PPE ကိရိယာအားလုံးကို ပြည့်စုံစွာ ဝတ်ဆင်ပါ',
           km: 'ការព្រមាន! សូមពាក់ឧបករណ៍ការពារឱ្យបានគ្រប់គ្រាន់',
-          lo: 'ເຕືອນອັນຕະລາຍ! ກະລຸນາໃສ່ອຸປະກອນນິລະໄພໃຫ້ຄົບຖ້ວນ',
-        },
-        acknowledged: false,
-      });
+          lo: 'ເຕືອນອັນຕະລາຍ! ກະລຸນາໃສ່ອຸປະກອນນິລະໄພໃຫ້ຄົບຖ້ວນ' },
+        acknowledged: false });
     }
   };
 

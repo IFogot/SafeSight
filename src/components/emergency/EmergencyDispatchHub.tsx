@@ -11,15 +11,13 @@ import {
   Volume2,
   ShieldCheck,
   CheckSquare,
-  Square,
-  Sparkles,
-} from 'lucide-react';
+  Square } from 'lucide-react';
 import { soundEngine } from '../../core/speech';
 import { SupportedLanguage } from '../../core/types';
 
 export const EmergencyDispatchHub: React.FC = () => {
-  const { t, language, evacuation, triggerEvacuation, cancelEvacuation, isDbConnected } = useSafeSight();
-  const [customReason, setCustomReason] = useState<string>(
+  const { t, evacuation, triggerEvacuation, cancelEvacuation, alerts, acknowledgeAlert, clearAlerts } = useSafeSight();
+  const [customReason] = useState<string>(
     'Toxic H2S Gas Leak Spike Detected in Zone A - Immediate Industrial Evacuation'
   );
   const [headcountChecked, setHeadcountChecked] = useState<number>(evacuation.accountedPersonnel);
@@ -52,29 +50,23 @@ export const EmergencyDispatchHub: React.FC = () => {
     th: {
       label: 'ภาษาไทย (Thai)',
       flag: '🇹🇭',
-      text: 'ประกาศฉุกเฉิน! ขอให้พนักงานทุกคนหยุดการทำงานและอพยพไปยังจุดรวมพล A ทันที',
-    },
+      text: 'ประกาศฉุกเฉิน! ขอให้พนักงานทุกคนหยุดการทำงานและอพยพไปยังจุดรวมพล A ทันที' },
     en: {
       label: 'English',
       flag: '🇬🇧',
-      text: 'Emergency evacuation alert! All personnel immediately stop machinery and evacuate to Muster Point A.',
-    },
+      text: 'Emergency evacuation alert! All personnel immediately stop machinery and evacuate to Muster Point A.' },
     my: {
       label: 'မြန်မာ (Burmese)',
       flag: '🇲🇲',
-      text: 'အရေးပေါ် ရွှေ့ပြောင်းရေး သတိပေးချက်! အလုပ်သမားအားလုံး လူစုဝေးရာနေရာ A သို့ ချက်ချင်း ထွက်ခွာပါ။',
-    },
+      text: 'အရေးပေါ် ရွှေ့ပြောင်းရေး သတိပေးချက်! အလုပ်သမားအားလုံး လူစုဝေးရာနေရာ A သို့ ချက်ချင်း ထွက်ခွာပါ။' },
     km: {
       label: 'ភាសាខ្មែរ (Khmer)',
       flag: '🇰🇭',
-      text: 'ការជូនដំណឹងជម្លៀសបន្ទាន់! បុគ្គលិកទាំងអស់ត្រូវជម្លៀសទៅកាន់ចំណុចប្រមូលផ្តុំ A ជាបន្ទាន់។',
-    },
+      text: 'ការជូនដំណឹងជម្លៀសបន្ទាន់! បុគ្គលិកទាំងអស់ត្រូវជម្លៀសទៅកាន់ចំណុចប្រមូលផ្តុំ A ជាបន្ទាន់។' },
     lo: {
       label: 'ພາສາລາວ (Lao)',
       flag: '🇱🇦',
-      text: 'ປະກາດສຸກເສີນ! ຂໍໃຫ້ພະນັກງານທຸກຄົນອົບພະຍົບໄປຍັງຈຸດລວມພົນ A ທັນທີ.',
-    },
-  };
+      text: 'ປະກາດສຸກເສີນ! ຂໍໃຫ້ພະນັກງານທຸກຄົນອົບພະຍົບໄປຍັງຈຸດລວມພົນ A ທັນທີ.' } };
 
   return (
     <div className="space-y-4">
@@ -322,6 +314,80 @@ export const EmergencyDispatchHub: React.FC = () => {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Active Safety Alerts - Acknowledge & Clear */}
+      <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+            <BellRing className="w-4 h-4" /> Active Safety Alerts ({alerts.filter((a) => !a.acknowledged).length} unacknowledged)
+          </span>
+          {alerts.some((a) => !a.acknowledged) && (
+            <button
+              onClick={clearAlerts}
+              className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-[10px] cursor-pointer transition-colors"
+            >
+              Clear All
+            </button>
+          )}
+        </div>
+
+        {alerts.length === 0 ? (
+          <p className="text-xs text-slate-500 italic py-2">No active alerts</p>
+        ) : (
+          <div className="space-y-2 text-xs max-h-64 overflow-y-auto pr-1">
+            {alerts.map((alert) => (
+              <div
+                key={alert.id}
+                className={`p-3 rounded-xl border flex items-start gap-3 transition-all ${
+                  alert.acknowledged
+                    ? 'bg-slate-900/40 border-slate-800/50 opacity-60'
+                    : alert.riskLevel === 'critical'
+                    ? 'bg-rose-900/30 border-rose-500/40'
+                    : alert.riskLevel === 'high'
+                    ? 'bg-amber-900/30 border-amber-500/40'
+                    : 'bg-slate-900/80 border-slate-800'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg shrink-0 ${
+                  alert.acknowledged
+                    ? 'bg-slate-800 text-slate-500'
+                    : alert.riskLevel === 'critical'
+                    ? 'bg-rose-500/20 text-rose-400'
+                    : alert.riskLevel === 'high'
+                    ? 'bg-amber-500/20 text-amber-400'
+                    : 'bg-cyan-500/20 text-cyan-400'
+                }`}>
+                  <AlertOctagon className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1 space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-200 truncate">{alert.title}</span>
+                    {alert.acknowledged && (
+                      <span className="text-[9px] font-mono text-emerald-400 shrink-0">ACK</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate">{alert.details.en}</p>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                    <span>{alert.zone}</span>
+                    <span>&middot;</span>
+                    <span>{alert.type.replace(/_/g, ' ')}</span>
+                    <span>&middot;</span>
+                    <span className="font-mono">{new Date(alert.timestamp).toLocaleTimeString()}</span>
+                  </div>
+                </div>
+                {!alert.acknowledged && (
+                  <button
+                    onClick={() => acknowledgeAlert(alert.id)}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-bold text-[10px] flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
+                  >
+                    <CheckCircle2 className="w-3 h-3" /> Ack
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -2,16 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useSafeSight } from '../../core/store';
 import {
   FileCheck2,
-  Download,
   Search,
   Filter,
   FileSpreadsheet,
   FileText,
-  Clock,
-  ShieldCheck,
-  CheckCircle2,
-  RefreshCw,
-} from 'lucide-react';
+  CheckCircle2 } from 'lucide-react';
 import { soundEngine } from '../../core/speech';
 import { getAuditLog as dbGetAuditLog } from '@/actions/audit';
 
@@ -44,8 +39,7 @@ export const AuditComplianceLog: React.FC = () => {
             title: e.action + (e.details ? ` - ${e.details}` : ''),
             severity: e.severity || 'medium',
             status: 'Verified & Logged',
-            assignedTo: e.actor,
-          }));
+            assignedTo: e.actor }));
           setDbLogs(mapped);
         }
       })
@@ -63,8 +57,7 @@ export const AuditComplianceLog: React.FC = () => {
       title: a.title,
       severity: a.riskLevel,
       status: a.acknowledged ? 'Acknowledged & Logged' : 'Pending Review',
-      assignedTo: a.assignedOfficer || 'Safety Shift Leader',
-    })),
+      assignedTo: a.assignedOfficer || 'Safety Shift Leader' })),
     ...hazardReports.map((h) => ({
       id: h.id,
       timestamp: h.timestamp,
@@ -73,8 +66,7 @@ export const AuditComplianceLog: React.FC = () => {
       title: h.title,
       severity: h.severity,
       status: h.status === 'resolved' ? 'Resolved & Verified' : 'Under Investigation',
-      assignedTo: h.reporterName,
-    })),
+      assignedTo: h.reporterName })),
   ];
 
   // Deduplicate by ID

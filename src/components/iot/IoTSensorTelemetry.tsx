@@ -2,18 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useSafeSight } from '../../core/store';
 import {
   Activity,
-  Gauge,
   Thermometer,
   Volume2,
   Zap,
-  ShieldAlert,
   Power,
   RefreshCw,
   Flame,
-  AlertTriangle,
-  CheckCircle2,
-  Sparkles,
-} from 'lucide-react';
+  Sparkles } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -21,12 +16,11 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  CartesianGrid,
-} from 'recharts';
+  CartesianGrid } from 'recharts';
 import { soundEngine } from '../../core/speech';
 
 export const IoTSensorTelemetry: React.FC = () => {
-  const { t, language, iotTelemetry, updateTelemetry, injectTelemetrySpike, addAlert, isDbConnected } = useSafeSight();
+  const { t, iotTelemetry, updateTelemetry, injectTelemetrySpike, addAlert, isDbConnected } = useSafeSight();
   const [selectedZone, setSelectedZone] = useState<string>('Zone A');
   const [chartHistory, setChartHistory] = useState<
     { time: string; gas: number; temp: number; noise: number; vibration: number }[]
@@ -42,8 +36,7 @@ export const IoTSensorTelemetry: React.FC = () => {
         gas: parseFloat((3.5 + Math.random() * 2).toFixed(1)),
         temp: parseFloat((32 + Math.random() * 3).toFixed(1)),
         noise: parseFloat((75 + Math.random() * 8).toFixed(1)),
-        vibration: parseFloat((1.8 + Math.random() * 0.8).toFixed(1)),
-      };
+        vibration: parseFloat((1.8 + Math.random() * 0.8).toFixed(1)) };
     });
     setChartHistory(initialPoints);
 
@@ -54,8 +47,7 @@ export const IoTSensorTelemetry: React.FC = () => {
         gas: currentZoneData ? currentZoneData.toxicGasH2S : 4.2,
         temp: currentZoneData ? currentZoneData.temperature : 33.5,
         noise: currentZoneData ? currentZoneData.noiseLevel : 78,
-        vibration: currentZoneData ? currentZoneData.vibration : 2.1,
-      };
+        vibration: currentZoneData ? currentZoneData.vibration : 2.1 };
       setChartHistory((prev) => [...prev.slice(-15), newPoint]);
     }, 3000);
 
@@ -85,25 +77,20 @@ export const IoTSensorTelemetry: React.FC = () => {
           en: `H2S gas sensor detected spike at 18.8 ppm in ${selectedZone}. Emergency scrubber active.`,
           my: `အဆိပ်ဓာတ်ငွေ့ ၁၈.၈ ppm သို့ ရုတ်တရက် မြင့်တက်လာပါသည်`,
           km: `ឧស្ម័នពុល H2S កើនឡើងដល់ 18.8 ppm បន្ទាន់`,
-          lo: `ອາຍພິດ H2S ຂຶ້ນສູງ 18.8 ppm ສຸກເສີນ`,
-        },
+          lo: `ອາຍພິດ H2S ຂຶ້ນສູງ 18.8 ppm ສຸກເສີນ` },
         audioText: {
           th: `เตือนภัยก๊าซรั่วไหลฉุกเฉินใน ${selectedZone} โปรดถอยห่างจากพื้นที่`,
           en: `Emergency gas leak alert in ${selectedZone}. Evacuate immediate area.`,
           my: `ဓာတ်ငွေ့ယိုစိမ့်မှု အရေးပေါ်သတိပေးချက်! ချက်ချင်း ရှောင်ရှားပါ`,
           km: `ការព្រមានឧស្ម័នលេចធ្លាយបន្ទាន់! សូមជម្លៀសចេញ`,
-          lo: `ແຈ້ງເຕືອນອາຍພິດຮົ່ວໄຫຼສຸກເສີນ! ຫຼີກລ່ຽງພື້ນທີ່ທັນທີ`,
-        },
-        acknowledged: false,
-      });
+          lo: `ແຈ້ງເຕືອນອາຍພິດຮົ່ວໄຫຼສຸກເສີນ! ຫຼີກລ່ຽງພື້ນທີ່ທັນທີ` },
+        acknowledged: false });
     } else if (type === 'temp' || type === 'noise') {
       soundEngine.playAlertBeep('warning');
     } else {
       soundEngine.playAlertBeep('success');
     }
   };
-
-  const activeZoneData = iotTelemetry.find((z) => z.zone === selectedZone) || iotTelemetry[0];
 
   return (
     <div className="space-y-4">
@@ -221,8 +208,7 @@ export const IoTSensorTelemetry: React.FC = () => {
                   borderRadius: '8px',
                   fontSize: '11px',
                   color: '#423D38',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
-                }}
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)' }}
               />
               <Area
                 type="monotone"

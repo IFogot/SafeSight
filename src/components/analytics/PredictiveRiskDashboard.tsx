@@ -2,14 +2,7 @@ import React, { useState } from 'react';
 import { useSafeSight } from '../../core/store';
 import {
   TrendingUp,
-  Sliders,
-  ShieldCheck,
-  Zap,
-  Activity,
-  AlertOctagon,
-  Award,
-  CheckCircle,
-} from 'lucide-react';
+  Sliders } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -18,13 +11,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  BarChart,
-  Bar,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
+  Legend } from 'recharts';
 import { HISTORICAL_ACCIDENT_DATA, PILOT_TRIAL_STATS } from '../../core/mockData';
 import { riskPredictor } from '../../engine/riskPredictor';
 
@@ -43,8 +30,7 @@ export const PredictiveRiskDashboard: React.FC = () => {
     workerFatigueIndex: fatigueIndex,
     zoneWorkerDensity: workerDensity,
     machineVibration: 3.2,
-    nearMissCountLast7Days: 2,
-  });
+    nearMissCountLast7Days: 2 });
 
   const paretoData = [
     { name: 'Missing PPE (Helmet/Vest)', count: 48, fill: '#F59E0B' },
@@ -164,8 +150,7 @@ export const PredictiveRiskDashboard: React.FC = () => {
                     borderRadius: '8px',
                     fontSize: '12px',
                     color: '#423D38',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
-                  }}
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)' }}
                 />
                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                 <Area
