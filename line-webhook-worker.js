@@ -1,5 +1,5 @@
 // SafeSight EEC — Production Cloudflare Worker for LINE Messaging API
-// Version 2.1.0 — TunKai-Inspired 6-Card Dashboard Matrix & Industrial Safety Automation
+// Version 2.2.0 — Rotating Missions · Multilingual Detection · Expanded AI Advisor · Feature Depth Update
 
 const DEFAULT_SECRET = "22be5b133d575c95012830ccb2e273bc";
 const DEFAULT_TOKEN = "fV8LlAcoEV3eiQ6pYN0vYqlHcXdNaDvOeo2GSBfEqoF7KXZNkPZkUR2+cvUaEh9Ecq7rBztCRtr/yqM6h4Y9sEj+6EZt/RCjfl/eHp8sVv4LZbsfU6Y2zZXCRmPhasr3NYIwziF3yYgSqRAu+OFLiwdB04t89/1O/w1cDnyilFU=";
@@ -164,24 +164,83 @@ function matchKeywords(text, keywords) {
   return keywords.some((kw) => lower.includes(kw.toLowerCase()));
 }
 
-// ── AI Safety Advisor ──
+// ── Language Detector (simple heuristic for 5 worker languages) ──
+function detectLanguage(text) {
+  if (!text) return 'th';
+  // Burmese Unicode block: \u1000-\u109F
+  if (/[\u1000-\u109F]/.test(text)) return 'my';
+  // Khmer Unicode block: \u1780-\u17FF
+  if (/[\u1780-\u17FF]/.test(text)) return 'km';
+  // Lao Unicode block: \u0E80-\u0EFF
+  if (/[\u0E80-\u0EFF]/.test(text)) return 'lo';
+  // Thai Unicode block: \u0E00-\u0E7F
+  if (/[\u0E00-\u0E7F]/.test(text)) return 'th';
+  return 'en';
+}
+
+// ── Daily Rotating Mission Pool ──
+const DAILY_MISSIONS = [
+  { title: 'ดื่มน้ำ · ตรวจสาย Harness', body: 'ดื่มน้ำ 250 มล. และตรวจสลัก D-Ring ก่อนเริ่มงาน', tip: 'การดื่มน้ำก่อนเข้ากะลด Heat Stroke ได้ 70% และการตรวจ D-Ring ป้องกันการตกจากที่สูง 100%' },
+  { title: 'ตรวจสอบ PPE ครบชุด', body: 'ยืนยันว่าสวมหมวก เสื้อ แว่น รองเท้า ครบก่อนเข้าโซนงาน', tip: 'PPE ที่ครบชุดลดโอกาสบาดเจ็บได้ถึง 85% ตามมาตรฐาน ISO 45001' },
+  { title: 'ถ่ายรูป Near-miss วันนี้', body: 'หากพบจุดเสี่ยงในพื้นที่ ถ่ายรูปแล้วรายงานทันที', tip: 'การรายงาน Near-miss ทุก 1 รายงาน ช่วยป้องกันอุบัติเหตุในอนาคตได้ 10 เหตุการณ์' },
+  { title: 'ตรวจ Sensor แก๊ส H2S', body: 'ตรวจสอบว่า Gas Detector ติดตัวและแสดงสีเขียว', tip: 'H2S ไม่มีสี ไม่มีกลิ่นในความเข้มข้นสูง ต้องพึ่งพา Sensor เท่านั้น' },
+  { title: 'พักตาจากหน้าจอ 20-20-20', body: 'ทุก 20 นาที มองวัตถุห่าง 20 ฟุต เป็นเวลา 20 วินาที', tip: 'ลดอาการตาล้าจากการจ้องหน้าจอควบคุมในโรงงาน EEC' },
+  { title: 'เช็กสัญญาณฉุกเฉิน', body: 'ทดสอบปุ่ม Emergency Stop บนสถานีงานของคุณ', tip: 'Emergency Stop ที่ใช้งานได้ลดเวลาหยุดเครื่องในกรณีฉุกเฉินได้ >40%' },
+  { title: 'รายงานอุปกรณ์ชำรุด', body: 'ตรวจและแจ้ง Supervisor หากพบอุปกรณ์หรือเครื่องมือชำรุด', tip: 'อุปกรณ์ชำรุดที่ไม่ได้แจ้งคือสาเหตุ #1 ของอุบัติเหตุซ้ำในโรงงาน' },
+];
+
+function getDailyMission() {
+  const dayIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000)) % DAILY_MISSIONS.length;
+  return DAILY_MISSIONS[dayIndex];
+}
+
+// ── AI Safety Advisor (Expanded + Multilingual fallback) ──
 function generateSafetyAIResponse(userQuery) {
   const q = (userQuery || '').toLowerCase();
+  const lang = detectLanguage(userQuery);
 
-  if (matchKeywords(q, ['ร้อน', 'อุณหภูมิ', 'heat', 'temperature', 'แดด', 'sun'])) {
-    return `⚠️ คำเตือนด้านอุณหภูมิ — SafeSight AI Safety Advisor\n\nอุณหภูมิสูงเกินมาตรฐาน (>35°C) เป็นปัจจัยเสี่ยงสำคัญในเขต EEC\n\nมาตรการเบื้องต้น:\n1. ดื่มน้ำ 250 มล. ทุก 30 นาที\n2. พักในที่ร่มทุก 60 นาที\n3. สังเกตอาการ: เวียนศีรษะ คลื่นไส้ ผิวแดง = Heat Stroke\n4. หากพบเพื่อนร่วมงานมีอาการ → พาเข้าที่ร่ม ราดน้ำ แจ้ง Safety Officer\n\n☎️ ฉุกเฉิน: กด SOS เพื่อแจ้งหน่วยกู้ภัยทันที`;
+  // Multilingual non-Thai opener
+  const multiLingualPrompt = lang === 'my'
+    ? '(မြန်မာ) SafeSight AI ဖြေကြားမည်:\n\n'
+    : lang === 'km'
+    ? '(ខ្មែរ) SafeSight AI នឹងឆ្លើយ:\n\n'
+    : lang === 'lo'
+    ? '(ລາວ) SafeSight AI ຈະຕອບ:\n\n'
+    : lang === 'en'
+    ? '(EN) SafeSight AI Response:\n\n'
+    : '';
+
+  // ── Topic Routing ──
+  if (matchKeywords(q, ['ร้อน', 'อุณหภูมิ', 'heat', 'temperature', 'แดด', 'sun', 'stroke'])) {
+    return `${multiLingualPrompt}⚠️ คำเตือนด้านอุณหภูมิ — SafeSight AI Safety Advisor\n\nอุณหภูมิสูงเกินมาตรฐาน (>35°C) เป็นปัจจัยเสี่ยงสำคัญในเขต EEC\n\nมาตรการเบื้องต้น:\n1. ดื่มน้ำ 250 มล. ทุก 30 นาที\n2. พักในที่ร่มทุก 60 นาที\n3. สังเกตอาการ: เวียนศีรษะ คลื่นไส้ ผิวแดง = Heat Stroke\n4. หากพบเพื่อนร่วมงานมีอาการ → พาเข้าที่ร่ม ราดน้ำ แจ้ง Safety Officer\n\n☎️ ฉุกเฉิน: กด SOS เพื่อแจ้งหน่วยกู้ภัยทันที`;
   }
-  if (matchKeywords(q, ['เสียง', 'หู', 'noise', 'hearing', 'ดัง', 'loud'])) {
-    return `🔊 คำแนะนำด้านเสียงรบกวน — SafeSight AI\n\nพื้นที่ EEC หลายโซนมีระดับเสียงสูงเกิน 85 dB(A)\n\nมาตรฐาน:\n• <85 dB: ปลอดภัย\n• 85-90 dB: สวม Ear Plug\n• >90 dB: สวม Ear Muff\n• >115 dB: ห้ามเข้าโดยไม่มีอุปกรณ์ป้องกัน\n\nIoT sensors ตรวจวัด Real-time บนแดชบอร์ดครับ`;
+  if (matchKeywords(q, ['เสียง', 'หู', 'noise', 'hearing', 'ดัง', 'loud', 'db', 'เดซิเบล'])) {
+    return `${multiLingualPrompt}🔊 คำแนะนำด้านเสียงรบกวน — SafeSight AI\n\nพื้นที่ EEC หลายโซนมีระดับเสียงสูงเกิน 85 dB(A)\n\nมาตรฐาน WHO/ISO:\n• <85 dB: ปลอดภัย (ทำงานได้ 8 ชม.)\n• 85–90 dB: ต้องสวม Ear Plug\n• >90 dB: ต้องสวม Ear Muff\n• >115 dB: ห้ามเข้าโดยไม่มีอุปกรณ์\n\nIoT sensors วัด Real-time บนแดชบอร์ดครับ`;
   }
-  if (matchKeywords(q, ['สารเคมี', 'แก๊ส', 'gas', 'chemical', 'h2s', 'co', 'กลิ่น', 'smell'])) {
-    return `☣️ คำเตือนด้านสารเคมี/แก๊ส — SafeSight AI\n\nIDLH Protocol:\n1. 🚶 ออกจากพื้นที่ทันที ไปทางเหนือลม (Upwind)\n2. 🆘 กด SOS หรือแจ้ง Safety Officer\n3. 🫁 หากหายใจลำบาก ให้นั่งพัก ห้ามนอนราบ\n4. 🚑 รอทีมกู้ภัยที่จุดรวมพล (Muster Point)\n\n⚠️ ห้ามกลับเข้าพื้นที่จนกว่า Safety Officer จะประกาศ All Clear`;
+  if (matchKeywords(q, ['สารเคมี', 'แก๊ส', 'gas', 'chemical', 'h2s', 'co', 'กลิ่น', 'smell', 'รั่ว', 'leak'])) {
+    return `${multiLingualPrompt}☣️ คำเตือนด้านสารเคมี/แก๊ส — SafeSight AI\n\nIDLH Protocol:\n1. 🚶 ออกจากพื้นที่ทันที ไปทางเหนือลม (Upwind)\n2. 🆘 กด SOS หรือแจ้ง Safety Officer\n3. 🫁 หายใจลำบาก → นั่งพัก ห้ามนอนราบ\n4. 🚑 รอกู้ภัยที่จุดรวมพล (Muster Point)\n\n⚠️ ห้ามกลับจนกว่า Safety Officer ประกาศ All Clear`;
   }
-  if (matchKeywords(q, ['ตก', 'สูง', 'fall', 'height', 'บันได', 'ladder', 'นั่งร้าน', 'scaffold'])) {
-    return `🏗️ คำเตือนงานที่สูง — SafeSight AI\n\nกฎ PPE สำหรับงานที่สูง (>2 เมตร):\n• สวม Full-body Harness และยึด Lanyard เสมอ\n• ตรวจสภาพนั่งร้านก่อนใช้งาน\n• ห้ามทำงานที่สูงเพียงลำพัง\n• สภาพอากาศแย่ = ห้ามขึ้น\n\nกล้อง AI Vision ของ SafeSight ตรวจจับ Fall Detection แบบ Real-time ครับ`;
+  if (matchKeywords(q, ['ตก', 'สูง', 'fall', 'height', 'บันได', 'ladder', 'นั่งร้าน', 'scaffold', 'harness', 'สายรัด'])) {
+    return `${multiLingualPrompt}🏗️ คำเตือนงานที่สูง — SafeSight AI\n\nกฎ PPE สำหรับงานที่สูง (>2 เมตร):\n• สวม Full-body Harness และยึด Lanyard เสมอ\n• ตรวจสภาพนั่งร้านก่อนใช้งาน\n• ห้ามทำงานที่สูงเพียงลำพัง\n• สภาพอากาศแย่ = ห้ามขึ้น\n\nกล้อง AI Vision ตรวจจับ Fall Detection แบบ Real-time ครับ`;
+  }
+  if (matchKeywords(q, ['ไฟไหม้', 'เพลิง', 'fire', 'smoke', 'ควัน', 'ดับเพลิง', 'extinguisher'])) {
+    return `${multiLingualPrompt}🔥 คำเตือนเพลิงไหม้ — SafeSight AI\n\นขั้นตอน RACE:\n1. 🔴 Rescue — พาผู้ที่อยู่ในอันตรายออก\n2. 🚨 Alarm — กดสัญญาณแจ้งเตือน / แจ้ง 199\n3. 🚒 Contain — ปิดประตู ป้องกันไฟลาม\n4. 🚶 Evacuate — อพยพตามเส้นทางฉุกเฉิน\n\n☎️ ศูนย์ดับเพลิง EEC: 199 | SOS: กดปุ่มด้านล่าง`;
+  }
+  if (matchKeywords(q, ['ไฟฟ้า', 'ช็อต', 'electric', 'shock', 'voltage', 'สายไฟ', 'switchboard'])) {
+    return `${multiLingualPrompt}⚡ คำเตือนอันตรายทางไฟฟ้า — SafeSight AI\n\nมาตรการ LOTO (Lockout/Tagout):\n1. 🔌 ตัดแหล่งจ่ายไฟทุกจุดก่อนซ่อม\n2. 🔒 ล็อกและแขวนป้าย "อย่าเปิด" (Tagout)\n3. 🧤 สวม Insulated Gloves ≥ 1,000V\n4. ❌ ห้ามทำงานคนเดียวกับระบบไฟฟ้า\n\n⚠️ ไฟฟ้า 230V สามารถทำให้เสียชีวิตได้ภายใน 0.1 วินาที`;
+  }
+  if (matchKeywords(q, ['กฎหมาย', 'กฎ', 'law', 'regulation', 'iso', 'osha', 'พรบ', 'มาตรฐาน', 'standard'])) {
+    return `${multiLingualPrompt}⚖️ กฎหมายและมาตรฐานความปลอดภัย — SafeSight AI\n\nประเทศไทย (EEC Zone):\n• พรบ. ความปลอดภัย อาชีวอนามัย พ.ศ. 2554\n• กฎกระทรวง PPE ปี 2563\n• มาตรฐาน มอก. 8001-2552 (OHSAS 18001)\n\nระดับสากล:\n• ISO 45001:2018 — มาตรฐาน OH&S Management\n• ILO Convention C155 — Occupational Safety\n\n💡 SafeSight ใช้ ISO 45001 เป็น baseline ทุกรายงานครับ`;
+  }
+  if (matchKeywords(q, ['เครียด', 'ล้า', 'fatigue', 'stress', 'tired', 'นอนไม่หลับ', 'burnout'])) {
+    return `${multiLingualPrompt}🧠 คำแนะนำด้านสุขภาพจิต/ร่างกาย — SafeSight AI\n\nอาการล้าเป็นสาเหตุ #3 ของอุบัติเหตุในโรงงาน EEC\n\nสัญญาณเตือน:\n• ปฏิกิริยาช้าลง >30%\n• สมาธิสั้นลง\n• ปวดศีรษะบ่อย\n\nมาตรการ:\n1. แจ้ง Supervisor เพื่อขอพัก\n2. ดื่มน้ำ ไม่ใช่กาแฟ ในช่วงพัก\n3. หลีกเลี่ยงงานอันตรายหากอ่อนล้ามาก\n\n🛡️ สุขภาพคุณสำคัญกว่าผลผลิตเสมอครับ`;
+  }
+  if (matchKeywords(q, ['ppe', 'หมวก', 'เสื้อ', 'แว่น', 'helmet', 'vest', 'goggles', 'รองเท้า', 'boots', 'ถุงมือ', 'gloves'])) {
+    return `${multiLingualPrompt}🦺 คู่มือ PPE — SafeSight AI\n\nชุด PPE มาตรฐาน EEC (ต้องครบทุกชิ้น):\n🪖 หมวกนิรภัย Hard Hat — Class E (ป้องกันไฟฟ้า)\n🦺 เสื้อสะท้อนแสง Hi-Vis — ANSI/ISEA 107\n🥽 แว่นตานิรภัย Safety Goggles — ANSI Z87.1\n🥾 รองเท้าหัวเหล็ก Safety Boots — S3 Standard\n🧤 ถุงมือ Gloves — ตามประเภทงาน\n\nAI Vision SafeSight ตรวจจับ PPE อัตโนมัติผ่านกล้อง CCTV Real-time ครับ`;
   }
 
-  return `🛡️ SafeSight AI Safety Advisor — ระบบเฝ้าระวังความปลอดภัยแรงงาน EEC\n\nคุณสามารถ:\n• แตะ 'เมนู' หรือเลือกการ์ดความปลอดภัยด้านล่าง\n• พิมพ์ 'ภารกิจ' เพื่อรับภารกิจความปลอดภัยประจำวัน\n• พิมพ์ 'เช็กอิน' ยืนยันความพร้อมก่อนเข้ากะทำงาน\n• ส่งรูปถ่ายหน้างานให้ AI Vision วิเคราะห์จุดเสี่ยง\n• พิมพ์ SOS เพื่อแจ้งเหตุฉุกเฉินทันที\n\n🌐 รองรับ 5 ภาษา: ไทย | English | မြန်မာ | ខ្មែរ | ລາວ`;
+  // Default multilingual response
+  return `${multiLingualPrompt}🛡️ SafeSight AI Safety Advisor — ระบบเฝ้าระวังความปลอดภัยแรงงาน EEC\n\nพิมพ์ถามเรื่องความปลอดภัยได้เลยครับ เช่น:\n• "Heat Stroke อาการเป็นอย่างไร"\n• "งานที่สูงต้องใส่อะไรบ้าง"\n• "กฎหมาย PPE ในไทยคืออะไร"\n• "สารเคมีรั่วต้องทำอะไรก่อน"\n\n💬 พิมพ์ 'เมนู' เพื่อดูระบบทั้งหมด | SOS = ฉุกเฉินทันที\n🌐 รองรับ: ไทย | English | မြန်မာ | ខ្មែរ | ລາວ`;
 }
 
 // ── 🎨 TunKai-Inspired 6-Card Dashboard Carousel Flex Message ──
@@ -560,9 +619,12 @@ function buildSafetyDashboardCarouselFlexMessage(siteUrl = DEFAULT_SITE_URL) {
 // ── Detail Flex Builders ──
 
 function buildSafetyMissionDetailFlexMessage() {
+  const mission = getDailyMission();
+  // Day number for user context (1-based, cycles 1-7)
+  const dayNum = (Math.floor(Date.now() / (24 * 60 * 60 * 1000)) % DAILY_MISSIONS.length) + 1;
   return {
     type: "flex",
-    altText: "⚡ ภารกิจความปลอดภัยประจำวันของคุณ",
+    altText: `⚡ ภารกิจวันนี้: ${mission.title}`,
     contents: {
       type: "bubble",
       size: "giga",
@@ -577,11 +639,12 @@ function buildSafetyMissionDetailFlexMessage() {
             layout: "horizontal",
             contents: [
               { type: "text", text: "⚡ ภารกิจความปลอดภัยประจำวัน", weight: "bold", color: "#f43f8e", size: "sm" },
-              { type: "text", text: "🔥 +50 XP", weight: "bold", color: "#ffffff", size: "xs", align: "end" },
+              { type: "text", text: `🔥 +50 XP · Day ${dayNum}`, weight: "bold", color: "#ffffff", size: "xs", align: "end" },
             ],
           },
-          { type: "text", text: "ตรวจเช็กสายรัดนิรภัย & ดื่มน้ำ 250 มล.", weight: "bold", color: "#ffffff", size: "xl", margin: "md", wrap: true },
-          { type: "text", text: "⏱️ ใช้เวลา: 30 วินาที | มาตรฐาน ISO 45001", color: "#fbcfe8", size: "xs", margin: "sm" },
+          { type: "text", text: mission.title, weight: "bold", color: "#ffffff", size: "xl", margin: "md", wrap: true },
+          { type: "text", text: `📋 ${mission.body}`, color: "#fbcfe8", size: "xs", margin: "sm", wrap: true },
+          { type: "text", text: "⏱️ ใช้เวลา: 30 วินาที | มาตรฐาน ISO 45001", color: "#fbcfe8", size: "xxs", margin: "xs" },
         ],
       },
       body: {
@@ -590,7 +653,7 @@ function buildSafetyMissionDetailFlexMessage() {
         backgroundColor: "#0f040b",
         paddingAll: "20px",
         contents: [
-          { type: "text", text: "💡 ข้อแนะนำความปลอดภัย: การดื่มน้ำก่อนเข้ากะช่วยลดความเสี่ยงภาวะ Heat Stroke ในโรงงานเขต EEC และการตรวจสลัก D-Ring ช่วยป้องกันการตกจากที่สูงได้ 100%", color: "#cbd5e1", size: "sm", wrap: true },
+          { type: "text", text: `💡 ทำไมสำคัญ: ${mission.tip}`, color: "#cbd5e1", size: "sm", wrap: true },
           { type: "separator", margin: "lg", color: "#3d102c" },
           {
             type: "box",
@@ -599,6 +662,7 @@ function buildSafetyMissionDetailFlexMessage() {
             spacing: "sm",
             contents: [
               { type: "button", style: "primary", color: "#f43f8e", height: "sm", action: { type: "postback", label: "✅ ยืนยันทำภารกิจสำเร็จ (+50 XP)", data: "action=complete_mission" } },
+              { type: "button", style: "link", color: "#fbcfe8", height: "sm", action: { type: "message", label: "🔋 ดูคะแนนความพร้อม PPE", text: "คะแนนความพร้อม" } },
               { type: "button", style: "secondary", color: "#2a0914", height: "sm", action: { type: "postback", label: "📋 ดูเมนูแดชบอร์ดหลัก", data: "action=menu" } },
             ],
           },
@@ -1016,8 +1080,21 @@ export default {
 
           // ── Follow / Add Friend Event ──
           if (event.type === 'follow' && event.replyToken) {
-            await sendLineMessageWithRetry(event.replyToken, [buildSafetyDashboardCarouselFlexMessage(siteUrl)], token);
-            await saveLineMessageToNeon(dbUrl, userId, 'assistant', '[Sent 6-Card Dashboard Matrix]');
+            const mission = getDailyMission();
+            const welcomeMsg = {
+              type: 'text',
+              text: `🛡️ ยินดีต้อนรับสู่ SafeSight EEC — ระบบความปลอดภัยอัจฉริยะ\n\n⚡ ภารกิจวันนี้: ${mission.title}\n📋 ${mission.body}\n\nแตะเมนูด้านล่าง หรือพิมพ์ 'เมนู' เพื่อเริ่มต้น\n🌐 รองรับ: ไทย | EN | မြန်မာ | ខ្មែរ | ລາວ`,
+              quickReply: {
+                items: [
+                  { type: 'action', action: { type: 'message', label: '⚡ รับภารกิจวันนี้', text: 'ขอภารกิจวันนี้' } },
+                  { type: 'action', action: { type: 'message', label: '📝 เช็กอินความปลอดภัย', text: 'เช็กอินวันนี้' } },
+                  { type: 'action', action: { type: 'message', label: '📋 ดูเมนูทั้งหมด', text: 'เมนู' } },
+                ],
+              },
+            };
+            await sendLineMessageWithRetry(event.replyToken, [welcomeMsg, buildSafetyDashboardCarouselFlexMessage(siteUrl)], token);
+            await saveLineMessageToNeon(dbUrl, userId, 'assistant', '[Welcome + Sent 6-Card Dashboard]');
+            await logAuditToNeon(dbUrl, userId, 'LINE_NEW_FOLLOWER', 'line', 'info', 'New follower added SafeSight LINE OA');
             continue;
           }
 
@@ -1031,14 +1108,17 @@ export default {
             } else if (data.startsWith('action=mission')) {
               replyMessages = [buildSafetyMissionDetailFlexMessage()];
             } else if (data.startsWith('action=complete_mission')) {
-              await saveLineMessageToNeon(dbUrl, userId, 'user', '[Completed Safety Mission: +50 XP]');
+              const m = getDailyMission();
+              await saveLineMessageToNeon(dbUrl, userId, 'user', `[Completed Mission: ${m.title} +50 XP]`);
+              await logAuditToNeon(dbUrl, userId, 'MISSION_COMPLETED', 'gamification', 'info', `Daily mission completed: ${m.title}`);
               replyMessages = [{
                 type: 'text',
-                text: '🎉 ยินดีด้วยครับ! คุณทำภารกิจความปลอดภัยสำเร็จแล้ว (+50 XP)\n\nระบบ SafeSight ได้บันทึกคะแนนสะสมความปลอดภัยของคุณเรียบร้อยแล้ว\n\n🛡️ ความปลอดภัยเริ่มต้นที่ตัวเราเสมอครับ!',
+                text: `🎉 ยินดีด้วยครับ! คุณทำภารกิจสำเร็จ +50 XP!\n\n✅ ภารกิจ: ${m.title}\n\nระบบ SafeSight บันทึกคะแนนสะสมเรียบร้อย\n\n🛡️ ความปลอดภัยเริ่มที่ตัวเราเสมอครับ!`,
                 quickReply: {
                   items: [
                     { type: 'action', action: { type: 'postback', label: '📋 แดชบอร์ดหลัก', data: 'action=menu' } },
                     { type: 'action', action: { type: 'postback', label: '🔋 ดูคะแนนความพร้อม', data: 'action=readiness' } },
+                    { type: 'action', action: { type: 'message', label: '📝 เช็กอินด้วย', text: 'เช็กอินวันนี้' } },
                     { type: 'action', action: { type: 'uri', label: '🌐 เปิดแอป SafeSight', uri: `${siteUrl}` } },
                   ],
                 },
@@ -1119,19 +1199,53 @@ export default {
 
             let replyMessages = [];
 
-            if (matchKeywords(userMsg, ['เมนู', 'menu', 'dashboard', 'แดชบอร์ด', 'ทันกาย', 'tunkai', 'home', 'เริ่ม'])) {
+            // ── Exact Rich Menu button texts (highest priority) ──
+            if (userMsg === 'ขอภารกิจวันนี้') {
+              replyMessages = [buildSafetyMissionDetailFlexMessage()];
+            } else if (userMsg === 'คะแนนความพร้อม') {
+              replyMessages = [buildSafetyReadinessDetailFlexMessage()];
+            } else if (userMsg === 'เรดาร์ความเสี่ยง') {
+              replyMessages = [buildSafetyRadarDetailFlexMessage()];
+            } else if (userMsg === 'เช็กอินวันนี้') {
+              replyMessages = [buildSafetyCheckinFlexMessage()];
+            } else if (userMsg === 'ส่งภาพตรวจ AI') {
+              replyMessages = [{
+                type: 'text',
+                text: '📷 ถ่ายรูปหรือส่งภาพถ่ายหน้างานในแชทนี้ได้เลยครับ\n\nระบบ AI Vision (YOLOv8) จะวิเคราะห์การสวมใส่หมวก เสื้อสะท้อนแสง แว่นตา และจุดเสี่ยงอันตรายให้อัตโนมัติทันทีครับ!',
+                quickReply: {
+                  items: [
+                    { type: 'action', action: { type: 'uri', label: '🌐 เปิดกล้อง AI สดบนเว็บ', uri: `${siteUrl}` } },
+                    { type: 'action', action: { type: 'message', label: '🦺 ดูสถานะ PPE', text: 'คะแนนความพร้อม' } },
+                  ],
+                },
+              }];
+            } else if (userMsg === 'ปรึกษา Safety AI') {
+              replyMessages = [{
+                type: 'text',
+                text: '🛡️ SafeSight 24/7 AI Safety Officer พร้อมให้คำปรึกษาครับ\n\nพิมพ์ถามได้เลย เช่น:\n• "Heat Stroke อาการเป็นอย่างไร"\n• "สารเคมีรั่วต้องทำอะไรก่อน"\n• "กฎหมาย PPE งานที่สูง"\n• "ไฟไหม้ต้องทำอย่างไร"\n• "PPE ครบชุดมีอะไรบ้าง"',
+                quickReply: {
+                  items: [
+                    { type: 'action', action: { type: 'message', label: '⚡ รับภารกิจวันนี้', text: 'ขอภารกิจวันนี้' } },
+                    { type: 'action', action: { type: 'message', label: '🆘 SOS ฉุกเฉิน', text: 'SOS' } },
+                    { type: 'action', action: { type: 'message', label: '🦺 ดูคู่มือ PPE', text: 'PPE ครบชุดมีอะไรบ้าง' } },
+                  ],
+                },
+              }];
+
+            // ── Keyword-based fuzzy matchers ──
+            } else if (matchKeywords(userMsg, ['เมนู', 'menu', 'dashboard', 'แดชบอร์ด', 'home', 'เริ่ม', 'help', 'สวัสดี', 'hello', 'hi'])) {
               replyMessages = [buildSafetyDashboardCarouselFlexMessage(siteUrl)];
 
-            } else if (matchKeywords(userMsg, ['ภารกิจ', 'mission', 'task'])) {
+            } else if (matchKeywords(userMsg, ['ภารกิจ', 'mission', 'task', 'ขอภารกิจ'])) {
               replyMessages = [buildSafetyMissionDetailFlexMessage()];
 
-            } else if (matchKeywords(userMsg, ['พร้อม', 'คะแนน', 'readiness', 'score'])) {
+            } else if (matchKeywords(userMsg, ['พร้อม', 'คะแนน', 'readiness', 'score', 'ความพร้อม'])) {
               replyMessages = [buildSafetyReadinessDetailFlexMessage()];
 
-            } else if (matchKeywords(userMsg, ['เรดาร์', 'radar', 'แก๊ส', 'gas', 'h2s', 'sensor'])) {
+            } else if (matchKeywords(userMsg, ['เรดาร์', 'radar', 'เซ็นเซอร์', 'h2s', 'sensor', 'ความเสี่ยง', 'risk'])) {
               replyMessages = [buildSafetyRadarDetailFlexMessage()];
 
-            } else if (matchKeywords(userMsg, ['เช็กอิน', 'เช็คอิน', 'checkin', 'check in', 'check-in'])) {
+            } else if (matchKeywords(userMsg, ['เช็กอิน', 'เช็คอิน', 'checkin', 'check in', 'check-in', 'เช็กอินวันนี้'])) {
               replyMessages = [buildSafetyCheckinFlexMessage()];
 
             } else if (matchKeywords(userMsg, ['แจ้งเตือน', 'alert', 'alerts', 'อุบัติเหตุ', 'accident', 'ล่าสุด'])) {
@@ -1140,7 +1254,7 @@ export default {
             } else if (matchKeywords(userMsg, ['รายงาน', 'จุดเสี่ยง', 'report', 'hazard', 'near miss', 'near-miss'])) {
               replyMessages = [buildHazardReportGuideFlexMessage()];
 
-            } else if (matchKeywords(userMsg, ['SOS', 'sos', 'ฉุกเฉิน', 'emergency', 'ช่วยด้วย', 'help'])) {
+            } else if (matchKeywords(userMsg, ['SOS', 'sos', 'ฉุกเฉิน', 'emergency', 'ช่วยด้วย', 'ด่วน', 'urgent'])) {
               await logAuditToNeon(dbUrl, userId, 'LINE_SOS_KEYWORD', 'emergency', 'critical', `SOS keyword: ${userMsg}`);
               replyMessages = [buildEmergencySOSFlexMessage()];
 
@@ -1169,28 +1283,30 @@ export default {
               }];
 
             } else if (event.message.type === 'image') {
-              // Image message -> Vision scan result card
+              // Image received → log and respond with AI Vision scan guide
+              await logAuditToNeon(dbUrl, userId, 'LINE_IMAGE_RECEIVED', 'vision', 'info', `Image message received from ${userId}`);
               replyMessages = [{
                 type: 'flex',
-                altText: '📸 AI Vision ได้รับรูปภาพแล้ว',
+                altText: '📸 AI Vision ได้รับรูปภาพแล้ว — กำลังวิเคราะห์',
                 contents: {
                   type: 'bubble', size: 'giga',
                   header: {
                     type: 'box', layout: 'vertical', backgroundColor: '#072930', paddingAll: '20px',
                     contents: [
                       { type: 'text', text: '📸 AI Vision (YOLOv8) ได้รับรูปภาพแล้ว', weight: 'bold', color: "#06b6d4", size: 'sm' },
-                      { type: 'text', text: 'กำลังวิเคราะห์ PPE & ความปลอดภัยหน้างาน...', weight: 'bold', color: '#ffffff', size: 'md', margin: 'sm' },
+                      { type: 'text', text: 'กำลังวิเคราะห์ PPE & ความปลอดภัยหน้างาน', weight: 'bold', color: '#ffffff', size: 'md', margin: 'sm' },
                     ],
                   },
                   body: {
                     type: 'box', layout: 'vertical', backgroundColor: '#031417', paddingAll: '20px',
                     contents: [
-                      { type: 'text', text: 'ผลตรวจจับเบื้องต้น:\n\n🪖 หมวกนิรภัย: ตรวจพบความเสี่ยง\n🦺 เสื้อสะท้อนแสง: ตรวจพบความเสี่ยง\n🥽 แว่นตา: ตรวจพบความเสี่ยง\n👷 จำนวนแรงงาน: 1 คน', color: '#cbd5e1', size: 'sm', wrap: true },
+                      { type: 'text', text: '🔍 ผลวิเคราะห์เบื้องต้น (ตรวจสอบบนเว็บสำหรับผลแบบ Real-time):\n\n🪖 หมวกนิรภัย: กำลังวิเคราะห์...\n🦺 เสื้อสะท้อนแสง: กำลังวิเคราะห์...\n🥽 แว่นตานิรภัย: กำลังวิเคราะห์...\n👷 จำนวนคนในภาพ: กำลังนับ...\n\n💡 สำหรับผล Real-time แบบสด กรุณาเปิดเว็บแอปและใช้กล้อง AI Vision โดยตรงครับ', color: '#cbd5e1', size: 'sm', wrap: true },
                       { type: 'separator', margin: 'lg', color: '#104c57' },
                       {
                         type: 'box', layout: 'vertical', margin: 'lg', spacing: 'sm',
                         contents: [
-                          { type: 'button', style: 'primary', color: '#06b6d4', height: 'sm', action: { type: 'uri', label: '🌐 เปิดดูกล้อง AI สดบนเว็บ', uri: `${siteUrl}` } },
+                          { type: 'button', style: 'primary', color: '#06b6d4', height: 'sm', action: { type: 'uri', label: '🌐 เปิดดูผลบนกล้อง AI สด', uri: `${siteUrl}` } },
+                          { type: 'button', style: 'link', color: '#a5f3fc', height: 'sm', action: { type: 'message', label: '📸 ส่งภาพรูปอื่น', text: 'ส่งภาพตรวจ AI' } },
                           { type: 'button', style: 'secondary', color: '#072930', height: 'sm', action: { type: 'postback', label: '📋 แดชบอร์ด 6 เมนู', data: "action=menu" } },
                         ],
                       },
