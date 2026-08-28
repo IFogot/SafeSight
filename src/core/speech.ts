@@ -13,7 +13,6 @@ class SafeSightAudioEngine {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Auto-unlock on first user interaction
       const unlock = () => {
         if (!this.isAudioUnlocked) {
           this.isAudioUnlocked = true;
@@ -25,7 +24,7 @@ class SafeSightAudioEngine {
       window.addEventListener('touchstart', unlock, { passive: true });
       window.addEventListener('click', unlock, { passive: true });
 
-      // Preload voices if supported
+      // Preload voices
       if ('speechSynthesis' in window) {
         window.speechSynthesis.getVoices();
         window.speechSynthesis.onvoiceschanged = () => {
@@ -37,8 +36,17 @@ class SafeSightAudioEngine {
 
   public ensureUnlocked(): void {
     try {
-      if (this.audioCtx && this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume().catch(() => {});
+      const ctx = this.getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+      // Play a 1-sample silent buffer to unlock iOS Safari Web Audio
+      if (ctx) {
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const node = ctx.createBufferSource();
+        node.buffer = buffer;
+        node.connect(ctx.destination);
+        node.start(0);
       }
       if ('speechSynthesis' in window && window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
@@ -59,6 +67,47 @@ class SafeSightAudioEngine {
       this.audioCtx.resume().catch(() => {});
     }
     return this.audioCtx;
+  }
+
+  // Play melodic harmonic notification chime using Web Audio API
+  public playMelodicChime(type: 'briefing' | 'alert' | 'success' = 'briefing') {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const notes =
+        type === 'success'
+          ? [523.25, 659.25, 783.99, 1046.5] // C5 -> E5 -> G5 -> C6
+          : type === 'alert'
+          ? [880, 659.25, 880, 440] // A5 -> E5 -> A5 -> A4
+          : [440, 554.37, 659.25, 880]; // A4 -> C#5 -> E5 -> A5 (Warm Briefing Chime)
+
+      const now = ctx.currentTime;
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        const startTime = now + idx * 0.09;
+        const duration = 0.22;
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, startTime);
+
+        gain.gain.setValueAtTime(0.001, startTime);
+        gain.gain.linearRampToValueAtTime(0.18, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      });
+    } catch {
+      // ignore
+    }
   }
 
   // Play synthetic industrial beep / alert sound using Web Audio API oscillators
@@ -105,7 +154,7 @@ class SafeSightAudioEngine {
       } else {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(440, now);
-        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.setValueAtTime(0.12, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
         osc.start(now);
         osc.stop(now + 0.06);
@@ -162,26 +211,25 @@ class SafeSightAudioEngine {
   public speakText(text: string, lang: SupportedLanguage = 'th') {
     if (this.isMuted || typeof window === 'undefined' || !text) return;
 
-    // Play subtle auditory chime so user always receives audible feedback
-    this.playAlertBeep('click');
+    // 1. Play melodic acoustic chime immediately so user gets guaranteed audio on every device
+    this.playMelodicChime('briefing');
 
     if (!('speechSynthesis' in window)) {
-      console.warn('SafeSight Audio: Web Speech Synthesis not supported in this environment');
+      console.warn('SafeSight Audio: Web Speech Synthesis not supported');
       return;
     }
 
     try {
       this.ensureUnlocked();
 
-      // Resume speech synthesis if suspended by Chromium
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
 
-      // Stop any pending speech cleanly
-      window.speechSynthesis.cancel();
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
 
-      // Clean text
       const cleanText = text.replace(/<[^>]*>?/gm, '').trim();
       if (!cleanText) return;
 
@@ -207,10 +255,8 @@ class SafeSightAudioEngine {
         v.lang.toLowerCase().startsWith(requestedLocale.toLowerCase().slice(0, 2))
       );
 
-      // Graceful voice fallback if specific regional voice is missing in OS
       if (!matchedVoice) {
         if (lang === 'my' || lang === 'km' || lang === 'lo') {
-          // Fallback to Thai or English voice if regional language voice is not pre-installed
           matchedVoice =
             voices.find((v) => v.lang.toLowerCase().startsWith('th')) ||
             voices.find((v) => v.lang.toLowerCase().startsWith('en')) ||
@@ -224,7 +270,6 @@ class SafeSightAudioEngine {
         utterance.voice = matchedVoice;
       }
 
-      // Retain utterance reference to avoid Chrome Garbage Collection abort bug
       activeUtterances.push(utterance);
       const cleanup = () => {
         const idx = activeUtterances.indexOf(utterance);
@@ -233,17 +278,11 @@ class SafeSightAudioEngine {
       utterance.onend = cleanup;
       utterance.onerror = (err) => {
         cleanup();
-        console.warn('SafeSight Speech Synthesis warning:', err);
+        console.warn('SafeSight Speech Synthesis notice:', err);
       };
 
-      // Slight timeout prevents Chromium race-condition bug with cancel() + speak()
-      setTimeout(() => {
-        try {
-          window.speechSynthesis.speak(utterance);
-        } catch (e) {
-          console.warn('Speech speak call warning:', e);
-        }
-      }, 50);
+      // Direct synchronous speak to preserve mobile user-gesture token
+      window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.warn('SafeSight Audio Engine Error:', err);
     }

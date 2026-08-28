@@ -31,6 +31,8 @@ export const WorkerMobileCompanion: React.FC = () => {
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const isAnalyzingRef = useRef<boolean>(false);
+
   // Daily Shift Pre-Flight Safety Checklist
   const [dailyChecklist, setDailyChecklist] = useState<{ id: string; label: string; checked: boolean }[]>([
     { id: 'chk-1', label: 'Inspect chin strap & structural integrity of hard hat', checked: true },
@@ -38,6 +40,11 @@ export const WorkerMobileCompanion: React.FC = () => {
     { id: 'chk-3', label: 'Check steel-toe boot sole traction & oil resistance', checked: false },
     { id: 'chk-4', label: 'Test emergency eye-wash station flow in Zone B', checked: false },
   ]);
+
+  // Pre-warm YOLO model in background on component mount (zero-wait mobile execution)
+  useEffect(() => {
+    visionEngine.loadModel().catch(() => {});
+  }, []);
 
   // Cleanup camera on unmount
   useEffect(() => {
@@ -103,11 +110,15 @@ export const WorkerMobileCompanion: React.FC = () => {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    isAnalyzingRef.current = false;
   }, [cameraStream]);
 
-  // Run PPE detection on current video frame
+  // Run PPE detection on current video frame with concurrency lock
   const runDetection = useCallback(async () => {
     if (!videoRef.current || videoRef.current.readyState < 2) return null;
+    if (isAnalyzingRef.current) return null;
+
+    isAnalyzingRef.current = true;
     try {
       const state = await visionEngine.analyzeFrame(videoRef.current, 'none', 0.35);
       // Render overlay on the canvas
@@ -119,6 +130,8 @@ export const WorkerMobileCompanion: React.FC = () => {
       return state;
     } catch {
       return null;
+    } finally {
+      isAnalyzingRef.current = false;
     }
   }, []);
 
@@ -152,10 +165,10 @@ export const WorkerMobileCompanion: React.FC = () => {
 
     await waitForReady();
 
-    // Run detection 3 times over ~2 seconds for reliability
+    // Run detection 4 times over ~2 seconds for smooth real-time tracking
     let bestState: DetectionFrameState | null = null;
     let detectionCount = 0;
-    const maxDetections = 3;
+    const maxDetections = 4;
 
     scanIntervalRef.current = setInterval(async () => {
       const state = await runDetection();
@@ -169,7 +182,7 @@ export const WorkerMobileCompanion: React.FC = () => {
           scanIntervalRef.current = null;
           stopCamera();
 
-          // Determine result
+          // Determine result based on live detected state
           const hasViolation = bestState?.hasViolation ?? false;
           const compliance = bestState?.compliancePercentage ?? 0;
 
@@ -189,7 +202,7 @@ export const WorkerMobileCompanion: React.FC = () => {
           setIsSelfieScanning(false);
         }
       }
-    }, 600);
+    }, 450);
   }, [isSelfieScanning, startCamera, stopCamera, runDetection, addPoints]);
 
   const handleSosClick = () => {
